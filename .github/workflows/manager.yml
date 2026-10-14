@@ -1,0 +1,46 @@
+name: RD Manager Windows
+
+on:
+  push:
+    branches: ["feat/manager-ui-and-benchmarks"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  manager:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate sync engine
+        run: cargo test --workspace
+      - name: Install UI dependencies
+        working-directory: apps/rd-manager
+        run: npm install --no-audit --no-fund
+      - name: Build Manager and UI
+        working-directory: apps/rd-manager
+        run: npx tauri build --no-bundle
+      - name: Build optimized Rust agent and tray
+        run: cargo build --release -p rd-agent --bins
+      - name: Package RD Portable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force RD-Portable | Out-Null
+          Copy-Item target/release/rd-agent.exe RD-Portable/
+          Copy-Item target/release/rd-tray.exe RD-Portable/
+          Copy-Item apps/rd-manager/src-tauri/target/release/rd-manager.exe RD-Portable/
+          Copy-Item README.md RD-Portable/
+          Compress-Archive -Path RD-Portable/* -DestinationPath RD-v0.3-Windows-x64.zip -Force
+          Get-ChildItem RD-Portable | Select-Object Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RD-v0.3-Windows-x64
+          path: RD-v0.3-Windows-x64.zip
+          if-no-files-found: error

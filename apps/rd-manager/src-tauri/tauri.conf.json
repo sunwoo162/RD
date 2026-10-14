@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "RD Manager",
+  "mainBinaryName": "rd-manager",
+  "version": "0.3.0",
+  "identifier": "dev.repodock.manager",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "RD — RepoDock",
+        "label": "main",
+        "width": 1180,
+        "height": 760,
+        "minWidth": 900,
+        "minHeight": 600,
+        "backgroundColor": "#0c111b"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": [
+      "icons/icon.ico"
+    ]
+  }
+}
