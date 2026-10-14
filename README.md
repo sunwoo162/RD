@@ -4,7 +4,7 @@
 
 RD는 **사용자가 직접 등록한 GitHub 저장소만** 지정한 로컬 폴더로 Clone하고, 원격 커밋을 주기적으로 확인하며, 안전할 때만 자동 갱신하는 초경량 프로젝트 동기화 도구입니다.
 
-**현재 단계: v0.2 사전 검증용.** 초경량 Windows 네이티브 트레이와 옵트인 자동 시작을 구현 중입니다. Tauri 관리 UI와 정식 릴리스는 아직 없으며 RAM·CPU 목표도 실측 전입니다.
+**현재 단계: v0.3 개발 프리뷰.** Rust 네이티브 트레이와 온디맨드 Tauri+React 관리 UI 소스를 구현했습니다. 정식 릴리스 전이며 RAM·CPU 목표는 아직 실측 전입니다.
 
 ## 주요 기능
 
@@ -16,6 +16,7 @@ RD는 **사용자가 직접 등록한 GitHub 저장소만** 지정한 로컬 폴
 - Fast-forward 업데이트만 허용, 강제 Reset/Clean/Push 금지
 - 단일 스케줄러와 저장소별 작업 잠금
 - Windows 전용 `rd-tray.exe`: WebView 없이 트레이에 상주, 필요할 때만 동기화 상태 확인
+- `rd-manager.exe`: 프로젝트 등록, 검색, 안전한 동기화, 모드 전환, 일시 정지, 자동 시작 관리 (열 때만 WebView 실행)
 - Windows 로그인 자동 시작: 명시적인 `autostart enable` 사용 시에만 활성화
 
 ## 개발 환경
@@ -57,8 +58,9 @@ rd-agent autostart disable
 
 1. GitHub Actions의 **RD Windows Portable** 실행 결과에서 ZIP을 다운로드해 압축 해제합니다.
 2. 동일한 폴더에 있는 `rd-agent.exe`로 저장소를 등록합니다.
-3. `rd-tray.exe`를 실행하면 시스템 트레이에 상주합니다. 우클릭으로 **지금 변경 확인(파일 미수정)**, **설정 폴더 열기**, **RD 종료**를 선택할 수 있습니다.
-4. 원하면 터미널에서 `rd-agent autostart enable`을 입력해 현재 Windows 사용자 로그인 시 자동 시작하도록 설정합니다. `disable`로 되돌릴 수 있습니다.
+3. `rd-manager.exe`를 실행하면 Tauri 관리 화면이 열립니다. 새 레포 등록, 보호/자동/관찰 모드, 일시 정지, 1회 갱신을 할 수 있습니다.
+4. `rd-tray.exe`를 실행하면 시스템 트레이에 상주합니다. 더블클릭 또는 우클릭 메뉴로 관리 화면을 열고, **지금 변경 확인(파일 미수정)**, **설정 폴더 열기**, **RD 종료**를 사용할 수 있습니다.
+5. 원하면 RD 관리 화면의 Preferences 또는 `rd-agent autostart enable`로 로그인 자동 실행을 켭니다. `disable`로 되돌릴 수 있습니다.
 
 **자동 시작은 동의 없이 켜지지 않습니다.** 포터블 폴더를 옮겼다면 `autostart enable`을 다시 실행해 경로를 갱신해야 합니다. 프로그램은 관리자 권한을 요구하지 않지만 Git이 설치되어 있고 저장소 접근 권한이 있어야 합니다. 트레이는 관리 UI가 아니며 초기 버전은 설정 폴더를 여는 기능만 제공합니다.
 
@@ -80,6 +82,10 @@ rd-agent autostart disable
 - [x] 로컬 변경 보호 + 분기 감지 + 자동화 테스트 코드 작성
 - [x] 기존 Rust CI 통과 확인 (PR #1)
 - [ ] Windows 트레이·자동 시작 CI 검증
-- [ ] 필요할 때만 실행되는 Tauri 관리 UI
+- [x] 필요할 때만 실행되는 Tauri 관리 UI 소스 작성
+- [ ] Windows 관리 UI 실제 사용 검증
 - [ ] Windows Portable ZIP 자동 빌드 검증 (릴리스 배포 전)
-- [ ] RAM·CPU·100개 레포 성능 측정
+- [x] Windows 메모리·CPU 측정 스크립트 작성
+- [ ] RAM·CPU·100개 레포 실측 및 검증
+
+관리 UI의 실행·성능 측정 방법은 [Manager 안내](docs/MANAGER.md)를 참고하세요.
