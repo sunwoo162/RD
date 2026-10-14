@@ -35,7 +35,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [url, setUrl] = useState("");
   const [destination, setDestination] = useState("");
-  const [branch, setBranch] = useState("main");
+  const [branch, setBranch] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [results, setResults] = useState<Record<string, string>>({});
@@ -79,8 +79,8 @@ export default function App() {
       setNotice({ tone: "error", message: "저장소 주소와 로컬 폴더를 모두 입력해주세요." });
       return;
     }
-    const ok = await run("add", undefined, { url: url.trim(), folder: destination.trim(), branch: branch.trim() || "main" });
-    if (ok) { setShowAdd(false); setUrl(""); setDestination(""); setBranch("main"); }
+    const ok = await run("add", undefined, { url: url.trim(), folder: destination.trim(), branch: branch.trim() });
+    if (ok) { setShowAdd(false); setUrl(""); setDestination(""); setBranch(""); }
   }
   async function pickPath() {
     const path = await open({ directory: true, multiple: false, title: "프로젝트를 저장할 상위 폴더 선택" });
@@ -150,7 +150,7 @@ export default function App() {
       </div>
     </main>
     {notice && <div role="status" className={"toast " + notice.tone}>{notice.tone === "success" ? <CheckCircle2 size={17}/> : <ShieldAlert size={17}/>}<span>{notice.message}</span><button onClick={() => setNotice(null)} title="닫기"><X size={15}/></button></div>}
-    {showAdd && <div className="overlay" onMouseDown={e => { if (e.target === e.currentTarget) setShowAdd(false); }}><div className="modal"><div className="modal-top"><div><div className="eyebrow">NEW REPOSITORY</div><h2>프로젝트 연결</h2></div><button className="icon-button" onClick={() => setShowAdd(false)}><X size={19}/></button></div><p className="modal-lead">새 저장소를 등록하면 선택한 로컬 경로에 Clone합니다. 이미 있는 폴더는 덮어쓰지 않아요.</p><label className="form-field">GitHub 저장소 URL<input autoFocus placeholder="https://github.com/owner/repo.git" value={url} onChange={e => setUrl(e.target.value)}/></label><label className="form-field">로컬 저장 경로<div className="folder-picker"><input placeholder="C:\Users\...\Documents\Projects\repo" value={destination} onChange={e => setDestination(e.target.value)}/><button onClick={pickPath} title="상위 폴더 선택" type="button"><FolderOpen size={18}/></button></div></label><label className="form-field">추적할 브랜치<input placeholder="main" value={branch} onChange={e => setBranch(e.target.value)}/></label><div className="mode-information"><ShieldCheck size={19}/><span><strong>기본 보호 모드</strong>로 등록됩니다. 자동 갱신은 등록 후 프로젝트별로 켤 수 있어요.</span></div><div className="modal-footer"><button className="secondary-button" onClick={() => setShowAdd(false)}>취소</button><button disabled={!!busy} className="primary" onClick={add}>{busy ? <RefreshCw className="spin" size={17}/> : <Plus size={17}/>} 등록 및 Clone</button></div></div></div>}
+    {showAdd && <div className="overlay" onMouseDown={e => { if (e.target === e.currentTarget) setShowAdd(false); }}><div className="modal"><div className="modal-top"><div><div className="eyebrow">NEW REPOSITORY</div><h2>프로젝트 연결</h2></div><button className="icon-button" onClick={() => setShowAdd(false)}><X size={19}/></button></div><p className="modal-lead">새 저장소를 등록하면 선택한 로컬 경로에 Clone합니다. 이미 있는 폴더는 덮어쓰지 않아요.</p><label className="form-field">GitHub 저장소 URL<input autoFocus placeholder="https://github.com/owner/repo.git" value={url} onChange={e => setUrl(e.target.value)}/></label><label className="form-field">로컬 저장 경로<div className="folder-picker"><input placeholder="C:\Users\...\Documents\Projects\repo" value={destination} onChange={e => setDestination(e.target.value)}/><button onClick={pickPath} title="상위 폴더 선택" type="button"><FolderOpen size={18}/></button></div></label><label className="form-field">추적할 브랜치<input placeholder="비워두면 기본 브랜치 선택" value={branch} onChange={e => setBranch(e.target.value)}/></label><div className="mode-information"><ShieldCheck size={19}/><span><strong>기본 보호 모드</strong>로 등록됩니다. 자동 갱신은 등록 후 프로젝트별로 켤 수 있어요.</span></div><div className="modal-footer"><button className="secondary-button" onClick={() => setShowAdd(false)}>취소</button><button disabled={!!busy} className="primary" onClick={add}>{busy ? <RefreshCw className="spin" size={17}/> : <Plus size={17}/>} 등록 및 Clone</button></div></div></div>}
     {showSettings && <div className="overlay" onMouseDown={e => { if (e.target === e.currentTarget) setShowSettings(false); }}><div className="modal small"><div className="modal-top"><div><div className="eyebrow">PREFERENCES</div><h2>자동 실행 설정</h2></div><button className="icon-button" onClick={() => setShowSettings(false)}><X size={19}/></button></div><p className="modal-lead">로그인할 때 초경량 트레이 Agent만 자동으로 실행됩니다. 관리 UI는 자동으로 열리지 않아요.</p><div className="startup-state"><Settings2 size={19}/><span>{autostart}</span></div><div className="modal-footer"><button disabled={!!busy} className="secondary-button" onClick={async () => { await run("autostart", undefined, { mode: "disable" }); await showStartup(); }}>자동 실행 끄기</button><button disabled={!!busy} className="primary" onClick={async () => { await run("autostart", undefined, { mode: "enable" }); await showStartup(); }}><Check size={17}/> 자동 실행 켜기</button></div></div></div>}
   </div>;
 }
