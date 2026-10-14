@@ -4,7 +4,7 @@
 
 RD는 **사용자가 직접 등록한 GitHub 저장소만** 지정한 로컬 폴더로 Clone하고, 원격 커밋을 주기적으로 확인하며, 안전할 때만 자동 갱신하는 초경량 프로젝트 동기화 도구입니다.
 
-**현재 단계: v0.1 Rust CLI/Agent 프로토타입.** Tauri UI, Windows 트레이/자동 시작, Windows Portable 릴리스는 아직 구현하지 않았으며 유휴 RAM·CPU 목표도 실측 전입니다.
+**현재 단계: v0.2 사전 검증용.** 초경량 Windows 네이티브 트레이와 옵트인 자동 시작을 구현 중입니다. Tauri 관리 UI와 정식 릴리스는 아직 없으며 RAM·CPU 목표도 실측 전입니다.
 
 ## 주요 기능
 
@@ -15,6 +15,8 @@ RD는 **사용자가 직접 등록한 GitHub 저장소만** 지정한 로컬 폴
 - 로컬 수정/미추적 파일, Git 작업, 현재 브랜치 불일치, 로컬 커밋 선행/분기 감지
 - Fast-forward 업데이트만 허용, 강제 Reset/Clean/Push 금지
 - 단일 스케줄러와 저장소별 작업 잠금
+- Windows 전용 `rd-tray.exe`: WebView 없이 트레이에 상주, 필요할 때만 동기화 상태 확인
+- Windows 로그인 자동 시작: 명시적인 `autostart enable` 사용 시에만 활성화
 
 ## 개발 환경
 
@@ -32,6 +34,9 @@ rd-agent check
 rd-agent sync <ID>
 rd-agent mode <ID> auto
 rd-agent watch
+rd-agent autostart enable
+rd-agent autostart status
+rd-agent autostart disable
 ```
 
 | 명령 | 동작 |
@@ -44,8 +49,18 @@ rd-agent watch
 | `pause <id>` / `resume <id>` | 동기화 감시 중단/재개 |
 | `remove <id>` | RD 등록 해제 (로컬 파일 보존) |
 | `watch` | 15분 기본 간격 감시 CLI 실행 |
+| `autostart enable/disable/status` | Windows 로그인 자동 실행 등록·해제·조회 |
 
-기본 모드는 `manual`이며 **Auto는 사용자가 명시적으로 선택한 저장소에만 적용**됩니다. `watch`는 명령 실행 동안 동작하며 아직 Windows 로그인 자동 시작을 지원하지 않습니다.
+기본 모드는 `manual`이며 **Auto는 사용자가 명시적으로 선택한 저장소에만 적용**됩니다. `watch`는 콘솔 모드로 실행됩니다.
+
+### Windows Portable (개발 버전)
+
+1. GitHub Actions의 **RD Windows Portable** 실행 결과에서 ZIP을 다운로드해 압축 해제합니다.
+2. 동일한 폴더에 있는 `rd-agent.exe`로 저장소를 등록합니다.
+3. `rd-tray.exe`를 실행하면 시스템 트레이에 상주합니다. 우클릭으로 **지금 변경 확인(파일 미수정)**, **설정 폴더 열기**, **RD 종료**를 선택할 수 있습니다.
+4. 원하면 터미널에서 `rd-agent autostart enable`을 입력해 현재 Windows 사용자 로그인 시 자동 시작하도록 설정합니다. `disable`로 되돌릴 수 있습니다.
+
+**자동 시작은 동의 없이 켜지지 않습니다.** 포터블 폴더를 옮겼다면 `autostart enable`을 다시 실행해 경로를 갱신해야 합니다. 프로그램은 관리자 권한을 요구하지 않지만 Git이 설치되어 있고 저장소 접근 권한이 있어야 합니다. 트레이는 관리 UI가 아니며 초기 버전은 설정 폴더를 여는 기능만 제공합니다.
 
 설정 위치: Windows `%LOCALAPPDATA%\RD\config.json`, Linux/macOS `~/.config/rd/config.json`. 실험/테스트에서는 환경 변수 `RD_CONFIG_DIR`를 사용할 수 있습니다.
 
@@ -63,8 +78,8 @@ rd-agent watch
 
 - [x] Rust 동기화 엔진 + CLI 소스 작성
 - [x] 로컬 변경 보호 + 분기 감지 + 자동화 테스트 코드 작성
-- [ ] Rust CI 통과 확인
-- [ ] Windows 트레이/자동 시작
+- [x] 기존 Rust CI 통과 확인 (PR #1)
+- [ ] Windows 트레이·자동 시작 CI 검증
 - [ ] 필요할 때만 실행되는 Tauri 관리 UI
-- [ ] Windows Portable ZIP 릴리스
+- [ ] Windows Portable ZIP 자동 빌드 검증 (릴리스 배포 전)
 - [ ] RAM·CPU·100개 레포 성능 측정
