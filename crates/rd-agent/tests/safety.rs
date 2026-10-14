@@ -10,6 +10,11 @@ fn cmd(dir: Option<&Path>, args: &[&str]) -> String {
     String::from_utf8_lossy(&output.stdout).trim().to_string()
 }
 
+// Git checkouts use CRLF for text files on some Windows runners.
+fn read_normalized(path: &Path) -> String {
+    fs::read_to_string(path).unwrap().replace("\r\n", "\n")
+}
+
 struct Fixture {
     tmp: TempDir,
     seed: PathBuf,
@@ -66,9 +71,9 @@ fn manual_does_not_modify_worktree_without_approval() {
     let f = Fixture::new(SyncMode::Manual);
     f.push("remote\n");
     assert_eq!(f.inspect(SyncIntent::Check), SyncStatus::UpdateAvailable { commits: 1 });
-    assert_eq!(fs::read_to_string(f.work.join("README.md")).unwrap(), "start\n");
+    assert_eq!(read_normalized(&f.work.join("README.md")), "start\n");
     assert_eq!(f.inspect(SyncIntent::Sync), SyncStatus::Updated { commits: 1 });
-    assert_eq!(fs::read_to_string(f.work.join("README.md")).unwrap(), "remote\n");
+    assert_eq!(read_normalized(&f.work.join("README.md")), "remote\n");
 }
 
 #[test]
@@ -85,7 +90,7 @@ fn dirty_tracked_file_blocks_update_without_loss() {
     f.push("remote\n");
     fs::write(f.work.join("README.md"), "my unfinished changes\n").unwrap();
     assert_eq!(f.inspect(SyncIntent::Scheduled), SyncStatus::LocalChanges);
-    assert_eq!(fs::read_to_string(f.work.join("README.md")).unwrap(), "my unfinished changes\n");
+    assert_eq!(read_normalized(&f.work.join("README.md")), "my unfinished changes\n");
 }
 
 #[test]
@@ -123,7 +128,7 @@ fn paused_repository_has_no_effect() {
     f.repo.enabled = false;
     f.push("remote\n");
     assert_eq!(f.inspect(SyncIntent::Check), SyncStatus::Paused);
-    assert_eq!(fs::read_to_string(f.work.join("README.md")).unwrap(), "start\n");
+    assert_eq!(read_normalized(&f.work.join("README.md")), "start\n");
 }
 
 #[test]
@@ -138,7 +143,7 @@ fn observe_mode_never_modifies_files_even_when_requested() {
     let f = Fixture::new(SyncMode::Observe);
     f.push("remote\n");
     assert_eq!(f.inspect(SyncIntent::Sync), SyncStatus::ObserveOnly);
-    assert_eq!(fs::read_to_string(f.work.join("README.md")).unwrap(), "start\n");
+    assert_eq!(read_normalized(&f.work.join("README.md")), "start\n");
 }
 
 #[test]
