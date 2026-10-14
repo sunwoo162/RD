@@ -42,6 +42,7 @@ mod app {
     const TRAY_CALLBACK: u32 = WM_APP + 1;
     const MENU_CHECK: usize = 1001;
     const MENU_FOLDER: usize = 1002;
+    const MENU_MANAGER: usize = 1004;
     const MENU_QUIT: usize = 1003;
     static ACTIONS: OnceLock<Sender<Action>> = OnceLock::new();
 
@@ -103,6 +104,7 @@ mod app {
             TRAY_CALLBACK if lparam as u32 == WM_RBUTTONUP => {
                 let menu = CreatePopupMenu();
                 if !menu.is_null() {
+                    AppendMenuW(menu, MF_STRING, MENU_MANAGER, w!("RD 관리 화면 열기"));
                     AppendMenuW(menu, MF_STRING, MENU_CHECK, w!("지금 변경 확인"));
                     AppendMenuW(menu, MF_STRING, MENU_FOLDER, w!("설정 폴더 열기"));
                     AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
@@ -118,13 +120,14 @@ mod app {
                 0
             }
             TRAY_CALLBACK if lparam as u32 == WM_LBUTTONDBLCLK => {
-                open_settings();
+                open_manager();
                 0
             }
             WM_COMMAND => {
                 match wparam & 0xffff {
                     MENU_CHECK => { if let Some(tx) = ACTIONS.get() { let _ = tx.send(Action::CheckNow); } },
                     MENU_FOLDER => open_settings(),
+                    MENU_MANAGER => open_manager(),
                     MENU_QUIT => { DestroyWindow(hwnd); },
                     _ => {}
                 }
@@ -133,6 +136,18 @@ mod app {
             WM_DESTROY => { PostQuitMessage(0); 0 }
             _ => DefWindowProcW(hwnd, message, wparam, lparam),
         }
+    }
+
+    fn open_manager() {
+        if let Ok(exe) = std::env::current_exe() {
+            let manager = exe.with_file_name("rd-manager.exe");
+            if manager.is_file() {
+                let _ = Command::new(manager).spawn();
+                return;
+            }
+        }
+        // CLI-only/older portable packages can still open their data folder.
+        open_settings();
     }
 
     fn open_settings() {
