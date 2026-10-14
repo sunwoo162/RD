@@ -9,9 +9,52 @@ fn usage() {
   rd-agent sync [id]       # 직접 승인하는 1회 업데이트\n\
   rd-agent mode <id> <observe|manual|auto>\n\
   rd-agent pause <id> | resume <id> | remove <id>\n\
-  rd-agent watch           # 백그라운드 동기화 엔진(콘솔 모드)\n\n\
+  rd-agent watch           # 콘솔 동기화 엔진\n\\\n  rd-agent autostart <enable|disable|status>  # Windows 로그인 자동 실행\n\n\
 기본값: 15분 주기, Manual 모드. 자동 Pull은 --auto나 mode auto로 명시한 저장소에만 적용됩니다.\n\
 등록 해제는 GitHub 저장소와 로컬 파일을 삭제하지 않습니다.");
+}
+
+#[cfg(windows)]
+fn autostart(action: &str) -> Result<(), String> {
+    let key = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+    let value = "RepoDock";
+    let exe = env::current_exe().map_err(|e| e.to_string())?
+        .with_file_name("rd-tray.exe");
+    let quoted_path = format!("\"{}\"", exe.display());
+    let invoke = |args: &[&str]| -> Result<bool, String> {
+        let output = process::Command::new("reg.exe").args(args)
+            .output().map_err(|e| format!("Windows 레지스트리 명령 실패: {}", e))?;
+        Ok(output.status.success())
+    };
+    match action {
+        "enable" => {
+            if !exe.is_file() { return Err("rd-agent.exe와 같은 폴더에 rd-tray.exe가 필요합니다".into()); }
+            // Run key command line has a documented 260-character limit.
+            if quoted_path.len() > 260 { return Err("실행 파일 경로가 너무 깁니다 (260자 초과)".into()); }
+            if !invoke(&["add", key, "/v", value, "/t", "REG_SZ", "/d", &quoted_path, "/f"])? {
+                return Err("Windows 시작 프로그램 등록에 실패했습니다".into());
+            }
+            println!("로그인 자동 실행 활성화: {}", quoted_path);
+        }
+        "disable" => {
+            let exists = invoke(&["query", key, "/v", value])?;
+            if exists && !invoke(&["delete", key, "/v", value, "/f"])? {
+                return Err("Windows 시작 프로그램 해제에 실패했습니다".into());
+            }
+            println!("로그인 자동 실행 비활성화");
+        }
+        "status" => {
+            let exists = invoke(&["query", key, "/v", value])?;
+            println!("로그인 자동 실행: {}", if exists { "등록됨" } else { "등록 안 됨" });
+        }
+        _ => return Err("사용법: autostart <enable|disable|status>".into()),
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn autostart(_action: &str) -> Result<(), String> {
+    Err("Windows 자동 시작만 지원합니다".into())
 }
 
 fn find_repo<'a>(config: &'a mut Settings, id: &str) -> Result<&'a mut Repository, String> {
@@ -104,6 +147,7 @@ fn command(args: &[String], config_dir: &Path, config: &mut Settings) -> Result<
             println!("RD 관리 목록에서만 해제했습니다. 로컬 폴더는 그대로 유지됩니다.");
         }
         "watch" => return watch(config_dir),
+        "autostart" => return autostart(args.get(1).map(String::as_str).unwrap_or("")),
         "help" | "--help" | "-h" => usage(),
         other => return Err(format!("알 수 없는 명령: {}", other)),
     }
