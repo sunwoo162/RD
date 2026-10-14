@@ -2,6 +2,13 @@ use crate::{git, model::{Repository, SyncMode, SyncStatus}};
 use fs2::FileExt;
 use std::{fs::{self, File, OpenOptions}, path::Path};
 
+// Windows can report lock contention as ERROR_SHARING_VIOLATION (32)
+// or ERROR_LOCK_VIOLATION (33), rather than WouldBlock.
+fn is_lock_contention(error: &std::io::Error) -> bool {
+    error.kind() == std::io::ErrorKind::WouldBlock
+        || (cfg!(windows) && matches!(error.raw_os_error(), Some(32) | Some(33)))
+}
+
 struct RepoLock(File);
 impl RepoLock {
     fn acquire(dir: &Path, id: &str) -> Result<Option<Self>, String> {
@@ -9,11 +16,15 @@ impl RepoLock {
         if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
             return Err("잘못된 저장소 ID입니다".into());
         }
-        let file = OpenOptions::new().create(true).read(true).write(true)
-            .open(dir.join("locks").join(format!("{}.lock", id))).map_err(|e| e.to_string())?;
+        let file = match OpenOptions::new().create(true).read(true).write(true)
+            .open(dir.join("locks").join(format!("{}.lock", id))) {
+                Ok(file) => file,
+                Err(e) if is_lock_contention(&e) => return Ok(None),
+                Err(e) => return Err(e.to_string()),
+            };
         match file.try_lock_exclusive() {
             Ok(()) => Ok(Some(Self(file))),
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => Ok(None),
+            Err(e) if is_lock_contention(&e) => Ok(None),
             Err(e) => Err(e.to_string()),
         }
     }
