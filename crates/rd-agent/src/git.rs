@@ -1,5 +1,20 @@
 use std::{ffi::OsStr, fs, path::{Path, PathBuf}, process::{Command, Output}, time::{SystemTime, UNIX_EPOCH}};
 
+// Windows canonicalize() adds a \\?\ prefix. Git for Windows cannot reliably
+// use these verbatim paths as clone destinations.
+#[cfg(windows)]
+fn git_compatible_path(path: PathBuf) -> PathBuf {
+    let Some(text) = path.to_str() else { return path };
+    let Some(rest) = text.strip_prefix(r"\\?\") else { return path };
+    if let Some(unc) = rest.strip_prefix(r"UNC\") {
+        PathBuf::from(format!(r"\\{}", unc))
+    } else if rest.as_bytes().get(1) == Some(&b':') {
+        PathBuf::from(rest)
+    } else {
+        path
+    }
+}
+
 fn execute(cmd: &mut Command) -> Result<String, String> {
     let output: Output = cmd.env("GIT_TERMINAL_PROMPT", "0")
         .env("GCM_INTERACTIVE", "never")
@@ -37,6 +52,8 @@ pub fn clone_repository(url: &str, target: &Path, branch: Option<&str>) -> Resul
     fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     let name = target.file_name().ok_or("대상 폴더 이름이 없습니다")?;
     let parent = fs::canonicalize(parent).map_err(|e| e.to_string())?;
+    #[cfg(windows)]
+    let parent = git_compatible_path(parent);
     let target = parent.join(name);
     if target.exists() { return Err("대상 폴더가 이미 있습니다".into()); }
     let nonce = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos();
@@ -139,6 +156,29 @@ pub fn fast_forward(path: &Path, branch: &str, hooks_dir: &Path) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(windows)]
+    #[test]
+    fn windows_verbatim_paths_are_git_compatible() {
+        assert_eq!(git_compatible_path(PathBuf::from(r"\\?\C:\work\repo")),
+                   PathBuf::from(r"C:\work\repo"));
+        assert_eq!(git_compatible_path(PathBuf::from(r"\\?\UNC\server\share\repo")),
+                   PathBuf::from(r"\\server\share\repo"));
+    }
+    #[cfg(windows)]
+    #[test]
+    fn canonicalized_windows_parent_supports_git_clone() {
+        let temp = tempfile::tempdir().unwrap();
+        let bare = temp.path().join("remote.git");
+        let init = Command::new("git").args(["init", "--bare"]).arg(&bare)
+            .output().expect("Git must be installed");
+        assert!(init.status.success(), "{}", String::from_utf8_lossy(&init.stderr));
+        let parent = git_compatible_path(fs::canonicalize(temp.path()).unwrap());
+        let work = parent.join("work");
+        let clone = Command::new("git").arg("clone").arg(&bare).arg(&work)
+            .output().expect("Git must be installed");
+        assert!(clone.status.success(), "{}", String::from_utf8_lossy(&clone.stderr));
+        assert!(work.join(".git").is_dir());
+    }
     #[test]
     fn only_explicit_github_urls() {
         assert_eq!(validate_github_url("https://github.com/sunwoo162/ain.git").unwrap(), "ain");
