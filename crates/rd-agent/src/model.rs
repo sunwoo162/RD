@@ -35,11 +35,13 @@ pub struct Settings {
     pub version: u32,
     pub interval_minutes: u64,
     pub repositories: Vec<Repository>,
+    #[serde(default)]
+    pub default_root: Option<PathBuf>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { version: 1, interval_minutes: 15, repositories: Vec::new() }
+        Self { version: 1, interval_minutes: 15, repositories: Vec::new(), default_root: None }
     }
 }
 

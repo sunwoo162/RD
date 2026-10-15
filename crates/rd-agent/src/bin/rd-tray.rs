@@ -63,11 +63,13 @@ mod app {
 
     fn worker(dir: &Path, rx: Receiver<Action>) {
         let mut due: HashMap<String, Instant> = HashMap::new();
+        let mut last_interval: Option<u64> = None;
         let mut immediate = false;
         loop {
             match config::load(dir) {
                 Ok(Settings { interval_minutes, repositories, .. }) => {
                     let interval = Duration::from_secs(interval_minutes.max(1).saturating_mul(60));
+                    if last_interval != Some(interval_minutes) { due.clear(); last_interval = Some(interval_minutes); }
                     let now = Instant::now();
                     for (index, repo) in repositories.iter().enumerate() {
                         if !repo.enabled { continue; }
@@ -163,7 +165,9 @@ mod app {
         // Same lock as rd-agent watch: only one scheduler can run per config.
         let lock = OpenOptions::new().create(true).truncate(false).read(true).write(true)
             .open(dir.join("watch.lock")).map_err(|e| e.to_string())?;
-        lock.try_lock_exclusive().map_err(|_| "RD가 이미 실행 중입니다")?;
+        // Opening the Manager may attempt to start the tray again. If it is
+        // already running, exit silently instead of showing a false startup error.
+        if lock.try_lock_exclusive().is_err() { return Ok(()); }
 
         let (tx, rx) = mpsc::channel();
         ACTIONS.set(tx.clone()).map_err(|_| "RD 채널 생성 실패")?;

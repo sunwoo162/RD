@@ -112,6 +112,17 @@ mod tests {
     }
 
     #[test]
+    fn version_one_settings_without_workspace_still_load() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut json = serde_json::to_value(Settings::default()).unwrap();
+        json.as_object_mut().unwrap().remove("default_root");
+        fs::write(tmp.path().join("config.json"), serde_json::to_vec(&json).unwrap()).unwrap();
+        let loaded = load(tmp.path()).unwrap();
+        assert_eq!(loaded.interval_minutes, 15);
+        assert!(loaded.default_root.is_none());
+    }
+
+    #[test]
     fn subsequent_save_updates_existing_config() {
         let temp = tempfile::tempdir().unwrap();
         let settings = Settings { interval_minutes: 42, ..Settings::default() };
