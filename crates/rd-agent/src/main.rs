@@ -9,7 +9,7 @@ fn usage() {
   rd-agent sync [id]       # 직접 승인하는 1회 업데이트\n\
   rd-agent mode <id> <observe|manual|auto>\n\
   rd-agent pause <id> | resume <id> | remove <id>\n\
-  rd-agent watch           # 콘솔 동기화 엔진\n\\\n  rd-agent autostart <enable|disable|status>  # Windows 로그인 자동 실행\n\n\
+  rd-agent watch           # 콘솔 동기화 엔진\n  rd-agent autostart <enable|disable|status>  # Windows 로그인 자동 실행\n\n\
 기본값: 15분 주기, Manual 모드. 자동 Pull은 --auto나 mode auto로 명시한 저장소에만 적용됩니다.\n\
 등록 해제는 GitHub 저장소와 로컬 파일을 삭제하지 않습니다.");
 }
@@ -114,12 +114,19 @@ fn command(args: &[String], config_dir: &Path, config: &mut Settings) -> Result<
             let selected = args.get(1).map(String::as_str);
             let repos: Vec<_> = config.repositories.iter().filter(|r| selected.is_none() || selected == Some(r.id.as_str())).collect();
             if repos.is_empty() { return Err("해당 저장소가 없거나 등록된 저장소가 없습니다".into()); }
+            let mut failures = 0;
             for repo in repos {
                 let intent = if args[0] == "sync" { SyncIntent::Sync } else { SyncIntent::Check };
                 match sync::inspect(repo, config_dir, intent) {
                     Ok(status) => println!("[{}] {}", repo.path.display(), status),
-                    Err(error) => eprintln!("[{}] 오류: {}", repo.path.display(), error),
+                    Err(error) => {
+                        failures += 1;
+                        eprintln!("[{}] 오류: {}", repo.path.display(), error);
+                    }
                 }
+            }
+            if failures > 0 {
+                return Err(format!("{}개 저장소의 Git 작업이 실패했습니다", failures));
             }
         }
         "mode" => {
@@ -158,7 +165,7 @@ fn watch(config_dir: &Path) -> Result<(), String> {
     use fs2::FileExt;
     use std::fs::{self, OpenOptions};
     fs::create_dir_all(config_dir).map_err(|e| e.to_string())?;
-    let file = OpenOptions::new().create(true).read(true).write(true)
+    let file = OpenOptions::new().create(true).truncate(false).read(true).write(true)
         .open(config_dir.join("watch.lock")).map_err(|e| e.to_string())?;
     file.try_lock_exclusive().map_err(|_| "이미 RD Agent가 실행 중입니다")?;
     println!("RD Agent 감시 시작 (Ctrl+C로 종료)");
@@ -187,6 +194,11 @@ fn watch(config_dir: &Path) -> Result<(), String> {
 fn main() {
     let args = env::args().skip(1).collect::<Vec<_>>();
     let result = config::data_dir().and_then(|dir| {
+        // Acquire before loading, so simultaneous managers cannot overwrite
+        // each other's changes with a stale copy of config.json.
+        let mutating = matches!(args.first().map(String::as_str),
+            Some("add" | "mode" | "pause" | "resume" | "remove"));
+        let _lock = if mutating { Some(config::ConfigLock::acquire(&dir)?) } else { None };
         let mut config = config::load(&dir)?;
         command(&args, &dir, &mut config)
     });

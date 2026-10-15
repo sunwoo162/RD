@@ -153,7 +153,7 @@ fn repo_lock_denies_simultaneous_update() {
     let f = Fixture::new(SyncMode::Auto);
     let dir = f.tmp.path().join("locks");
     fs::create_dir_all(&dir).unwrap();
-    let lock = OpenOptions::new().create(true).read(true).write(true).open(dir.join("fixture-01.lock")).unwrap();
+    let lock = OpenOptions::new().create(true).truncate(false).read(true).write(true).open(dir.join("fixture-01.lock")).unwrap();
     lock.lock_exclusive().unwrap();
     assert_eq!(f.inspect(SyncIntent::Check), SyncStatus::Busy);
     FileExt::unlock(&lock).unwrap();

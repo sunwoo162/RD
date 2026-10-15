@@ -11,7 +11,7 @@ mod app {
     use rd_agent::{config, model::Settings, sync::{self, SyncIntent}};
     use std::{
         collections::HashMap,
-        fs::{self, File, OpenOptions},
+        fs::{self, OpenOptions},
         io::Write,
         path::Path,
         process::Command,
@@ -161,7 +161,7 @@ mod app {
         fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
         // Same lock as rd-agent watch: only one scheduler can run per config.
-        let lock = OpenOptions::new().create(true).read(true).write(true)
+        let lock = OpenOptions::new().create(true).truncate(false).read(true).write(true)
             .open(dir.join("watch.lock")).map_err(|e| e.to_string())?;
         lock.try_lock_exclusive().map_err(|_| "RD가 이미 실행 중입니다")?;
 

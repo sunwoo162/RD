@@ -23,7 +23,7 @@ jobs:
         run: cargo test --workspace
       - name: Install UI dependencies
         working-directory: apps/rd-manager
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Build Manager and UI
         working-directory: apps/rd-manager
         run: npx tauri build --no-bundle

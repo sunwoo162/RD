@@ -1,5 +1,25 @@
 use crate::model::Settings;
-use std::{env, fs, io::Write, path::{Path, PathBuf}};
+use fs2::FileExt;
+use std::{env, fs::{self, File, OpenOptions}, io::Write, path::{Path, PathBuf}};
+
+/// Serializes CLI commands that modify config.json across processes.
+pub struct ConfigLock(File);
+
+impl ConfigLock {
+    pub fn acquire(dir: &Path) -> Result<Self, String> {
+        fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        let file = OpenOptions::new().create(true).truncate(false).read(true).write(true)
+            .open(dir.join("config.lock"))
+            .map_err(|e| format!("설정 잠금 파일을 열 수 없습니다: {}", e))?;
+        file.try_lock_exclusive()
+            .map_err(|_| "다른 RD 명령이 설정을 변경하고 있습니다. 잠시 후 다시 시도하세요".to_string())?;
+        Ok(Self(file))
+    }
+}
+
+impl Drop for ConfigLock {
+    fn drop(&mut self) { let _ = FileExt::unlock(&self.0); }
+}
 
 pub fn data_dir() -> Result<PathBuf, String> {
     if let Some(dir) = env::var_os("RD_CONFIG_DIR") {
