@@ -20,7 +20,9 @@ jobs:
         with:
           node-version: "22"
       - name: Validate sync engine
-        run: cargo test --workspace
+        run: |
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace --locked
       - name: Install UI dependencies
         working-directory: apps/rd-manager
         run: npm ci --no-audit --no-fund
@@ -37,10 +39,10 @@ jobs:
           Copy-Item target/release/rd-tray.exe RD-Portable/
           Copy-Item apps/rd-manager/src-tauri/target/release/rd-manager.exe RD-Portable/
           Copy-Item README.md RD-Portable/
-          Compress-Archive -Path RD-Portable/* -DestinationPath RD-v0.3-Windows-x64.zip -Force
+          Compress-Archive -Path RD-Portable/* -DestinationPath RD-v1.0.0-rc.1-Windows-x64.zip -Force
           Get-ChildItem RD-Portable | Select-Object Name, Length
       - uses: actions/upload-artifact@v4
         with:
-          name: RD-v0.3-Windows-x64
-          path: RD-v0.3-Windows-x64.zip
+          name: RD-v1.0.0-rc.1-Windows-x64
+          path: RD-v1.0.0-rc.1-Windows-x64.zip
           if-no-files-found: error

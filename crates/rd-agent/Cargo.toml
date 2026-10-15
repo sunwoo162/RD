@@ -1,6 +1,6 @@
 [package]
 name = "rd-agent"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 edition = "2021"
 license = "MIT"
 description = "Lightweight, safe GitHub-to-local repository synchronizer"
@@ -9,14 +9,13 @@ description = "Lightweight, safe GitHub-to-local repository synchronizer"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 fs2 = "0.4"
-
-[dev-dependencies]
 tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
+    "Win32_Storage_FileSystem",
     "Win32_System_LibraryLoader",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",

@@ -147,6 +147,16 @@ fn observe_mode_never_modifies_files_even_when_requested() {
 }
 
 #[test]
+fn in_progress_merge_is_detected_by_batched_git_path_lookup() {
+    let f = Fixture::new(SyncMode::Auto);
+    let relative = PathBuf::from(cmd(Some(&f.work), &["rev-parse", "--git-path", "MERGE_HEAD"]));
+    let marker = if relative.is_absolute() { relative } else { f.work.join(relative) };
+    fs::write(&marker, "simulated merge\n").unwrap();
+    assert_eq!(f.inspect(SyncIntent::Check), SyncStatus::GitOperationInProgress);
+    fs::remove_file(marker).unwrap();
+}
+
+#[test]
 fn repo_lock_denies_simultaneous_update() {
     use fs2::FileExt;
     use std::fs::OpenOptions;

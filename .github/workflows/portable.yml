@@ -18,7 +18,8 @@ jobs:
       - name: Check and test
         run: |
           cargo check --workspace --all-targets
-          cargo test --workspace
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace --locked
       - name: Build optimized Windows binaries
         run: cargo build --release -p rd-agent --bins
       - name: Create portable ZIP
@@ -28,10 +29,10 @@ jobs:
           Copy-Item target/release/rd-agent.exe RD-Portable/
           Copy-Item target/release/rd-tray.exe RD-Portable/
           Copy-Item README.md RD-Portable/
-          Compress-Archive -Path RD-Portable/* -DestinationPath RD-Portable-Windows-x64.zip -Force
-          Get-Item RD-Portable-Windows-x64.zip | Select-Object Name, Length
+          Compress-Archive -Path RD-Portable/* -DestinationPath RD-v1.0.0-rc.1-Agent-Windows-x64.zip -Force
+          Get-Item RD-v1.0.0-rc.1-Agent-Windows-x64.zip | Select-Object Name, Length
       - uses: actions/upload-artifact@v4
         with:
-          name: RD-Portable-Windows-x64
-          path: RD-Portable-Windows-x64.zip
+          name: RD-v1.0.0-rc.1-Agent-Windows-x64
+          path: RD-v1.0.0-rc.1-Agent-Windows-x64.zip
           if-no-files-found: error
