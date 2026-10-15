@@ -1,0 +1,83 @@
+name: RD Versioned Windows Installers
+
+on:
+  pull_request:
+    paths:
+      - "installer/**"
+      - ".github/workflows/installers.yml"
+      - "README.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install NSIS on ephemeral build runner
+        shell: pwsh
+        run: choco install nsis --yes --no-progress
+
+      - name: Build installers from verified official versioned releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($tag in @('v1.0.0', 'v1.1.0', 'v1.1.0-beta.1')) {
+            & ./installer/build-installer.ps1 -Version $tag -OutputDir 'installer/output'
+            if ($LASTEXITCODE -ne 0) { throw "Installer build failed: $tag" }
+          }
+
+      - name: Verify silent installation, side-by-side versions and uninstallation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $versions = @('v1.0.0', 'v1.1.0', 'v1.1.0-beta.1')
+          $config = Join-Path $env:LOCALAPPDATA 'RD'
+          New-Item -ItemType Directory -Force -Path $config | Out-Null
+          $sentinel = Join-Path $config 'installer-qa-preserve.txt'
+          [System.IO.File]::WriteAllText($sentinel, 'PRESERVE USER SETTINGS')
+
+          foreach ($version in $versions) {
+            $setup = (Resolve-Path "installer/output/RepoDock-Setup-$version.exe").Path
+            $process = Start-Process -FilePath $setup -ArgumentList '/S' -PassThru -Wait
+            if ($process.ExitCode -ne 0) { throw "Silent installation failed: $version" }
+            $dir = Join-Path $env:LOCALAPPDATA "Programs/RepoDock/$version"
+            foreach ($file in @('rd-manager.exe','rd-tray.exe','rd-agent.exe','Uninstall.exe')) {
+              if (-not (Test-Path -LiteralPath (Join-Path $dir $file))) {
+                throw "Missing $file after installing $version"
+              }
+            }
+            $versionOutput = (& (Join-Path $dir 'rd-agent.exe') --help | Select-Object -First 1)
+            if ($versionOutput -notmatch [regex]::Escape($version.TrimStart('v'))) {
+              throw "Version mismatch for $version : $versionOutput"
+            }
+            Write-Output "INSTALLED_AND_CHECKED=$version"
+          }
+
+          foreach ($version in $versions) {
+            $dir = Join-Path $env:LOCALAPPDATA "Programs/RepoDock/$version"
+            $process = Start-Process -FilePath (Join-Path $dir 'Uninstall.exe') -ArgumentList '/S' -PassThru -Wait
+            if ($process.ExitCode -ne 0) { throw "Uninstall failed: $version" }
+            if (Test-Path -LiteralPath (Join-Path $dir 'rd-manager.exe')) {
+              throw "Uninstall left a program file behind: $version"
+            }
+            Write-Output "UNINSTALLED=$version"
+          }
+
+          if ((Get-Content -LiteralPath $sentinel -Raw) -ne 'PRESERVE USER SETTINGS') {
+            throw "Installer modified shared user configuration!"
+          }
+          Write-Output 'SHARED_USER_DATA_PRESERVED'
+          Remove-Item -LiteralPath $sentinel -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RepoDock-All-Version-Windows-Installers
+          path: installer/output/RepoDock-Setup-*.exe
+          if-no-files-found: error

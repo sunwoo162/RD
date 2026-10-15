@@ -2,6 +2,24 @@
 
 > **Your code, already here.**
 
+## 버전별 다운로드 (Windows 64비트)
+
+원하는 **버전의 글자를 클릭하면 바로 다운로드**됩니다. 설치형 `Setup.exe`는 다운로드 후 실행해서 **다음 → 설치 → 완료** 순서로 설치하고, 포터블 ZIP은 압축을 풀고 `rd-manager.exe`를 실행하면 됩니다.
+
+| 버전 | 간편 설치 (.exe) | 무설치 (.zip) | 상태 |
+| --- | --- | --- | --- |
+| **V1.1.0** | [V1.1.0 설치하기](https://github.com/sunwoo162/RD/releases/download/v1.1.0/RepoDock-Setup-v1.1.0.exe) | [V1.1.0 ZIP 다운로드](https://github.com/sunwoo162/RD/releases/download/v1.1.0/RD-v1.1.0-Windows-x64.zip) | **최신 정식** |
+| **V1.0.0** | [V1.0.0 설치하기](https://github.com/sunwoo162/RD/releases/download/v1.0.0/RepoDock-Setup-v1.0.0.exe) | [V1.0.0 ZIP 다운로드](https://github.com/sunwoo162/RD/releases/download/v1.0.0/RD-v1.0.0-Windows-x64.zip) | 이전 정식 |
+| V1.1.0 Beta 1 | [베타 설치하기](https://github.com/sunwoo162/RD/releases/download/v1.1.0-beta.1/RepoDock-Setup-v1.1.0-beta.1.exe) | [베타 ZIP 다운로드](https://github.com/sunwoo162/RD/releases/download/v1.1.0-beta.1/RD-v1.1.0-beta.1-Windows-x64.zip) | 실험 버전 |
+
+[**모든 GitHub Releases 보기**](https://github.com/sunwoo162/RD/releases) · [V1.2 개발 상황 (아직 정식 출시 전)](https://github.com/sunwoo162/RD/pull/7)
+
+- **간편 설치:** 설치 파일을 내려받아 직접 실행하세요. Windows가 웹페이지의 클릭만으로 프로그램을 자동 실행하는 것은 보안상 허용하지 않습니다.
+- **버전별 독립 설치:** 각 버전은 `%LOCALAPPDATA%\Programs\RepoDock\v버전`에 설치되고, 바탕화면과 시작 메뉴에 버전명이 붙은 바로가기가 생깁니다.
+- **안전한 버전 변경:** 프로젝트 폴더는 이동·삭제하지 않고, 기존 RD 설정은 `%LOCALAPPDATA%\RD`에 유지됩니다. 단 **모든 버전이 설정을 공유**하므로 기존 Manager/Tray를 종료하고 **한 번에 한 버전만 실행**하세요. 신버전 설정을 구버전으로 되돌리는 것은 보장하지 않습니다.
+- **삭제:** Windows 설치된 앱 또는 설치 폴더의 `Uninstall.exe`에서 해당 버전만 제거하며 사용자 프로젝트와 RD 설정은 유지합니다.
+- **참고:** 현재 설치형은 코드 서명이 없어 Windows SmartScreen 확인이 뜰 수 있습니다. 필요한 경우 릴리스 페이지에서 출처와 파일을 확인하세요. Git 및 WebView2 런타임은 별도로 필요합니다.
+
 RD는 **사용자가 직접 등록한 GitHub 저장소만** 지정한 로컬 폴더로 Clone하고, 원격 커밋을 주기적으로 확인하며, 안전할 때만 자동 갱신하는 초경량 프로젝트 동기화 도구입니다.
 
 **현재 단계: v1.1.0 Windows Portable.** 첫 저장 폴더 선택과 GitHub 주소 하나로 프로젝트를 자동 연결할 수 있습니다. Windows 실기기 및 CI 검증을 거쳤고, 사용 중인 로컬 파일은 기존 안전 정책으로 보호합니다. 코드 서명 및 24시간 이상 운영 테스트는 후속 검증이 필요합니다.
