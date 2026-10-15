@@ -65,13 +65,20 @@ pub fn find_workspace_match(root: &Path, requested_url: &str) -> Result<Option<E
         if !ty.is_dir() || ty.is_symlink() { continue; }
         let path = entry.path();
         if path.file_name().is_some_and(|n| n.to_string_lossy().starts_with(".rd-clone-")) { continue; }
-        if !path.join(".git").exists() { continue; }
+        let marker = path.join(".git");
+        let Ok(meta) = fs::symlink_metadata(&marker) else { continue };
+        if meta.file_type().is_symlink() || !(meta.is_dir() || meta.is_file()) { continue; }
         // Canonicalize to avoid traversing junctions or other reparse points
         // outside the chosen workspace, even when not marked as symlinks.
         let Ok(real) = canonical_path(&path) else { continue };
         if real.parent() != Some(canonical_root.as_path()) { continue; }
-        let Ok(existing) = inspect_existing(&path) else { continue };
-        if git::github_identity(&existing.url).ok().as_deref() != Some(identity.as_str()) { continue; }
+        let Ok(origin) = git::git(&path, &["remote", "get-url", "origin"]) else { continue };
+        if git::github_identity(&origin).ok().as_deref() != Some(identity.as_str()) { continue; }
+        // If origin matches but the worktree is broken/unborn, do NOT clone a
+        // duplicate. Let the user repair/select it explicitly.
+        let existing = inspect_existing(&path).map_err(|_| {
+            "동일한 origin의 Git 저장소가 있지만 브랜치 또는 Git 상태를 확인할 수 없습니다. 기존 프로젝트를 직접 확인하세요".to_string()
+        })?;
         if matched.is_some() {
             return Err("같은 GitHub 저장소가 여러 폴더에 있습니다. '기존 프로젝트 연결'에서 직접 폴더를 선택하세요".into());
         }
@@ -117,6 +124,17 @@ mod tests {
         repo(&temp.path().join("RD"), "https://github.com/other/RD.git");
         fs::create_dir(temp.path().join("plain-folder")).unwrap();
         assert!(find_workspace_match(temp.path(), "https://github.com/sunwoo162/RD").unwrap().is_none());
+    }
+
+    #[test]
+    fn matching_origin_with_unborn_branch_must_not_be_cloned_again() {
+        let temp = tempfile::tempdir().unwrap();
+        let unborn = temp.path().join("unborn");
+        git_ok(temp.path(), &["init", "-b", "main", unborn.to_str().unwrap()]);
+        git_ok(&unborn, &["remote", "add", "origin", "https://github.com/example/unborn.git"]);
+        assert!(find_workspace_match(temp.path(), "https://github.com/example/unborn")
+            .unwrap_err().contains("Git 상태"));
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 1);
     }
 
     #[test]
