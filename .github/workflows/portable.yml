@@ -1,0 +1,37 @@
+name: RD Windows Portable
+
+on:
+  push:
+    branches: ["feat/windows-tray-portable"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portable:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check and test
+        run: |
+          cargo check --workspace --all-targets
+          cargo test --workspace
+      - name: Build optimized Windows binaries
+        run: cargo build --release -p rd-agent --bins
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force RD-Portable | Out-Null
+          Copy-Item target/release/rd-agent.exe RD-Portable/
+          Copy-Item target/release/rd-tray.exe RD-Portable/
+          Copy-Item README.md RD-Portable/
+          Compress-Archive -Path RD-Portable/* -DestinationPath RD-Portable-Windows-x64.zip -Force
+          Get-Item RD-Portable-Windows-x64.zip | Select-Object Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RD-Portable-Windows-x64
+          path: RD-Portable-Windows-x64.zip
+          if-no-files-found: error
