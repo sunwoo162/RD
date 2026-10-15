@@ -1,4 +1,4 @@
-use std::{ffi::OsStr, fs, path::{Path, PathBuf}, process::{Command, Output}, time::{SystemTime, UNIX_EPOCH}};
+use std::{env, ffi::OsStr, fs, io::{Read, Seek, SeekFrom}, path::{Path, PathBuf}, process::{Command, Output, Stdio}, thread, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
 
 // Windows canonicalize() adds a \\?\ prefix. Git for Windows cannot reliably
 // use these verbatim paths as clone destinations.
@@ -15,11 +15,62 @@ fn git_compatible_path(path: PathBuf) -> PathBuf {
     }
 }
 
-fn execute(cmd: &mut Command) -> Result<String, String> {
-    let output: Output = cmd.env("GIT_TERMINAL_PROMPT", "0")
+// Keep stdout/stderr in temporary files rather than pipes: a Git process that
+// prints more than a pipe buffer must not deadlock while we wait for it.
+fn execute_with_timeout(cmd: &mut Command, timeout: Duration) -> Result<Output, String> {
+    let mut stdout_file = tempfile::tempfile().map_err(|e| e.to_string())?;
+    let mut stderr_file = tempfile::tempfile().map_err(|e| e.to_string())?;
+    let stdout_writer = stdout_file.try_clone().map_err(|e| e.to_string())?;
+    let stderr_writer = stderr_file.try_clone().map_err(|e| e.to_string())?;
+    let mut child = cmd.env("GIT_TERMINAL_PROMPT", "0")
         .env("GCM_INTERACTIVE", "never")
-        .output()
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(stdout_writer))
+        .stderr(Stdio::from(stderr_writer))
+        .spawn()
         .map_err(|e| format!("Git 실행 실패(설치 확인 필요): {}", e))?;
+    let started = Instant::now();
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(exit)) => break exit,
+            Ok(None) if started.elapsed() >= timeout => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("Git 명령 제한 시간 초과 ({}초)", timeout.as_secs()));
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(10)),
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("Git 프로세스 확인 실패: {}", e));
+            }
+        }
+    };
+    stdout_file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+    stderr_file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+    // Cap output so huge/broken subprocess output cannot exhaust memory.
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+    stdout_file.take(8 * 1024 * 1024 + 1).read_to_end(&mut stdout).map_err(|e| e.to_string())?;
+    stderr_file.take(32 * 1024).read_to_end(&mut stderr).map_err(|e| e.to_string())?;
+    if stdout.len() > 8 * 1024 * 1024 {
+        return Err("Git 출력이 허용 크기(8MB)를 초과했습니다".into());
+    }
+    Ok(Output { status, stdout, stderr })
+}
+
+fn execute_raw(cmd: &mut Command) -> Result<Output, String> {
+    // Large clones may need more time; users can change the limit without
+    // changing sync modes or weakening local worktree protections.
+    let seconds = env::var("RD_GIT_TIMEOUT_SECS").ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .filter(|n| (1..=3600).contains(n))
+        .unwrap_or(180);
+    execute_with_timeout(cmd, Duration::from_secs(seconds))
+}
+
+fn execute(cmd: &mut Command) -> Result<String, String> {
+    let output = execute_raw(cmd)?;
     if !output.status.success() {
         let msg = String::from_utf8_lossy(&output.stderr);
         return Err(format!("Git 작업 실패: {}", msg.chars().take(300).collect::<String>().trim()));
@@ -100,19 +151,28 @@ pub fn dirty(path: &Path) -> Result<bool, String> {
 
 pub fn operation_in_progress(path: &Path) -> Result<bool, String> {
     let names = ["MERGE_HEAD", "REBASE_HEAD", "rebase-apply", "rebase-merge", "CHERRY_PICK_HEAD", "REVERT_HEAD", "BISECT_LOG", "sequencer"];
+    // One Git invocation resolves every path, including linked worktree paths.
+    let mut args = vec!["rev-parse"];
     for name in names {
-        let location = git(path, &["rev-parse", "--git-path", name])?;
-        let location = PathBuf::from(location);
+        args.extend(["--git-path", name]);
+    }
+    let resolved = git(path, &args)?;
+    let mut paths = resolved.lines();
+    for _ in names {
+        let location = PathBuf::from(paths.next().ok_or("Git 작업 경로 조회 오류")?);
         let actual = if location.is_absolute() { location } else { path.join(location) };
         if actual.exists() { return Ok(true); }
     }
+    if paths.next().is_some() { return Err("Git 작업 경로 개수 오류".into()); }
     Ok(false)
 }
 
 pub fn origin_sha(path: &Path, branch: &str) -> Result<Option<String>, String> {
-    let output = Command::new("git").arg("-C").arg(path)
-        .args(["rev-parse", "--verify", &format!("refs/remotes/origin/{}", branch)])
-        .output().map_err(|e| e.to_string())?;
+    validate_branch(branch)?;
+    let mut cmd = Command::new("git");
+    cmd.arg("-C").arg(path)
+        .args(["rev-parse", "--verify", &format!("refs/remotes/origin/{}", branch)]);
+    let output = execute_raw(&mut cmd)?;
     if !output.status.success() { return Ok(None); }
     Ok(Some(String::from_utf8_lossy(&output.stdout).trim().to_string()))
 }
@@ -156,6 +216,35 @@ pub fn fast_forward(path: &Path, branch: &str, hooks_dir: &Path) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn git_runner_collects_output() {
+        let mut cmd = Command::new("git");
+        cmd.arg("--version");
+        let output = execute_with_timeout(&mut cmd, Duration::from_secs(10)).unwrap();
+        assert!(output.status.success());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("git version"));
+    }
+
+    #[test]
+    fn git_runner_interrupts_stalled_process() {
+        #[cfg(windows)]
+        let mut cmd = {
+            let mut c = Command::new("powershell.exe");
+            c.args(["-NoProfile", "-Command", "Start-Sleep -Seconds 4"]);
+            c
+        };
+        #[cfg(not(windows))]
+        let mut cmd = {
+            let mut c = Command::new("sh");
+            c.args(["-c", "sleep 4"]);
+            c
+        };
+        let started = Instant::now();
+        let error = execute_with_timeout(&mut cmd, Duration::from_millis(250)).unwrap_err();
+        assert!(error.contains("제한 시간"), "{error}");
+        assert!(started.elapsed() < Duration::from_secs(3));
+    }
     #[cfg(windows)]
     #[test]
     fn windows_verbatim_paths_are_git_compatible() {

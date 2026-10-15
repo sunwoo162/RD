@@ -46,7 +46,7 @@ $report = [ordered]@{
     ram_working_set_peak_mb = $rams[-1]
     cpu_percent_machine_average = $cpuPercent
     processor_count = [Environment]::ProcessorCount
-    measurements = @($samples)
+    measurements = $samples.ToArray()
 }
 $report | ConvertTo-Json -Depth 5 | Set-Content -Path $OutputPath -Encoding UTF8
 Write-Host "RAM average $($report.ram_working_set_average_mb)MB | peak $($report.ram_working_set_peak_mb)MB | CPU $cpuPercent% (host normalized)"

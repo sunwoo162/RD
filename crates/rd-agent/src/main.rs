@@ -2,7 +2,7 @@ use rd_agent::{config, git, model::{Repository, Settings, SyncMode}, sync::{self
 use std::{collections::HashMap, env, path::{Path, PathBuf}, process, thread, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
 
 fn usage() {
-    println!("RD Agent v0.1\n\
+    println!("RD Agent v{}\n\
   rd-agent add <github-url> <folder> [--branch <name>] [--auto]\n\
   rd-agent list\n\
   rd-agent check [id]\n\
@@ -11,7 +11,7 @@ fn usage() {
   rd-agent pause <id> | resume <id> | remove <id>\n\
   rd-agent watch           # 콘솔 동기화 엔진\n  rd-agent autostart <enable|disable|status>  # Windows 로그인 자동 실행\n\n\
 기본값: 15분 주기, Manual 모드. 자동 Pull은 --auto나 mode auto로 명시한 저장소에만 적용됩니다.\n\
-등록 해제는 GitHub 저장소와 로컬 파일을 삭제하지 않습니다.");
+등록 해제는 GitHub 저장소와 로컬 파일을 삭제하지 않습니다.", env!("CARGO_PKG_VERSION"));
 }
 
 #[cfg(windows)]
