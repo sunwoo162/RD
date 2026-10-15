@@ -44,6 +44,10 @@ pub fn inspect_existing(path: &Path) -> Result<ExistingRepo, String> {
     let branch = git::current_branch(&path)
         .map_err(|_| "현재 브랜치를 확인할 수 없습니다".to_string())?;
     git::validate_branch(&branch)?;
+    // An unborn branch can have a name but no checked-out commit. Do not
+    // adopt it as an up-to-date working copy.
+    git::git(&path, &["rev-parse", "--verify", "HEAD"])
+        .map_err(|_| "아직 첫 커밋이 없는 Git 저장소입니다".to_string())?;
     Ok(ExistingRepo { path, url, branch })
 }
 
