@@ -26,6 +26,9 @@ jobs:
       - name: Install UI dependencies
         working-directory: apps/rd-manager
         run: npm ci --no-audit --no-fund
+      - name: Test Manager UI interactions
+        working-directory: apps/rd-manager
+        run: npm run test
       - name: Build Manager and UI
         working-directory: apps/rd-manager
         run: npx tauri build --no-bundle
