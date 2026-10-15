@@ -1,10 +1,11 @@
-use rd_agent::{config, git, model::{Repository, Settings, SyncMode}, sync::{self, SyncIntent}};
+use rd_agent::{config, git, link::{self, ExistingRepo}, model::{Repository, Settings, SyncMode}, sync::{self, SyncIntent}};
 use std::{collections::HashMap, env, path::{Path, PathBuf}, process, thread, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
 
 fn usage() {
     println!("RD Agent v{}\n\
   rd-agent add <github-url> <folder> [--branch <name>] [--auto]\n\
-  rd-agent add-auto <github-url>   # 지정한 기본 폴더에 자동 연결\n\
+  rd-agent add-auto <github-url>   # 기존 GitHub 저장소 발견 시 연결, 없으면 Clone\n\
+  rd-agent attach <local-folder>   # 로컬 GitHub 프로젝트 연결(이동/복사 없음)\n\
   rd-agent root <folder> | interval <5|15|30|60>\n\
   rd-agent list\n\
   rd-agent check [id]\n\
@@ -70,6 +71,34 @@ fn generate_id(settings: &Settings) -> Result<String, String> {
     Ok(id)
 }
 
+// Only register checked Git roots; never change or move the worktree at attachment time.
+fn register_existing(config_dir: &Path, config: &mut Settings, existing: ExistingRepo) -> Result<(), String> {
+    let identity = git::github_identity(&existing.url)?;
+    if let Some(registered) = config.repositories.iter().find(|r|
+        git::github_identity(&r.url).ok().as_deref() == Some(identity.as_str())
+    ) {
+        println!("이미 RD에 연결된 프로젝트: {}", registered.path.display());
+        return Ok(());
+    }
+    if config.repositories.iter().any(|r|
+        link::canonical_path(&r.path).ok().as_deref() == Some(existing.path.as_path())
+    ) {
+        return Err("이미 다른 저장소로 관리 중인 로컬 폴더입니다".into());
+    }
+    let repo = Repository {
+        id: generate_id(config)?,
+        url: existing.url,
+        path: existing.path,
+        branch: existing.branch,
+        mode: SyncMode::Auto,
+        enabled: true,
+    };
+    config.repositories.push(repo);
+    config::save(config_dir, config)?;
+    println!("기존 GitHub 프로젝트 연결 완료 · 파일 이동/수정 없음 · 안전한 자동 업데이트 활성화");
+    Ok(())
+}
+
 fn command(args: &[String], config_dir: &Path, config: &mut Settings) -> Result<(), String> {
     match args.first().map(String::as_str).unwrap_or("help") {
         "root" => {
@@ -96,10 +125,17 @@ fn command(args: &[String], config_dir: &Path, config: &mut Settings) -> Result<
             let url = git::normalized_github_url(&args[1])?;
             let repo_name = git::validate_github_url(&url)?;
             let identity = git::github_identity(&url)?;
-            if config.repositories.iter().any(|r| git::github_identity(&r.url).ok().as_deref() == Some(identity.as_str())) {
-                return Err("이미 등록된 GitHub 프로젝트입니다".into());
+            if let Some(repo) = config.repositories.iter().find(|r|
+                git::github_identity(&r.url).ok().as_deref() == Some(identity.as_str())
+            ) {
+                println!("이미 RD에 연결된 프로젝트: {}", repo.path.display());
+                return Ok(());
             }
             let root = config.default_root.as_ref().ok_or("먼저 기본 저장 폴더를 설정하세요")?;
+            // Search only inside the configured RepoDock folder, never all Documents.
+            if let Some(existing) = link::find_workspace_match(root, &url)? {
+                return register_existing(config_dir, config, existing);
+            }
             let owner = url.strip_prefix("https://github.com/")
                 .or_else(|| url.strip_prefix("git@github.com:"))
                 .ok_or("GitHub URL 형식 오류")?
@@ -120,6 +156,13 @@ fn command(args: &[String], config_dir: &Path, config: &mut Settings) -> Result<
             config.repositories.push(repo);
             config::save(config_dir, config)?;
             println!("프로젝트 연결 완료 · 안전한 자동 업데이트 활성화");
+        }
+        "attach" => {
+            if args.len() != 2 { return Err("사용법: attach <local-folder>".into()); }
+            let path = PathBuf::from(&args[1]);
+            if !path.is_absolute() { return Err("기존 프로젝트 폴더의 절대 경로를 선택하세요".into()); }
+            let existing = link::inspect_existing(&path)?;
+            return register_existing(config_dir, config, existing);
         }
         "add" => {
             if args.len() < 3 { return Err("사용법: add <github-url> <folder> [--branch <name>] [--auto]".into()); }
@@ -248,7 +291,7 @@ fn main() {
         // Acquire before loading, so simultaneous managers cannot overwrite
         // each other's changes with a stale copy of config.json.
         let mutating = matches!(args.first().map(String::as_str),
-            Some("add" | "add-auto" | "root" | "interval" | "mode" | "pause" | "resume" | "remove"));
+            Some("add" | "add-auto" | "attach" | "root" | "interval" | "mode" | "pause" | "resume" | "remove"));
         let _lock = if mutating { Some(config::ConfigLock::acquire(&dir)?) } else { None };
         let mut config = config::load(&dir)?;
         command(&args, &dir, &mut config)
