@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use rd_agent::{config, model::{Repository, Settings}};
-use std::{path::PathBuf, process::Command};
+use std::process::Command;
 
 #[tauri::command]
 fn list_repositories() -> Result<Vec<Repository>, String> {

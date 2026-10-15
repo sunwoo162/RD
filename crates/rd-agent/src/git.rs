@@ -84,6 +84,24 @@ pub fn git(repo: &Path, args: &[&str]) -> Result<String, String> {
     execute(&mut cmd)
 }
 
+/// Accept the URL copied from a GitHub repo page, including a trailing slash.
+/// All other path components and non-GitHub hosts remain rejected.
+pub fn normalized_github_url(input: &str) -> Result<String, String> {
+    let url = input.trim().trim_end_matches('/');
+    validate_github_url(url)?;
+    Ok(url.to_string())
+}
+
+/// A GitHub repository identity is case-insensitive and ignores the optional
+/// .git suffix and HTTPS-versus-SSH transport. Used only to prevent duplicates.
+pub fn github_identity(input: &str) -> Result<String, String> {
+    let url = normalized_github_url(input)?;
+    let suffix = url.strip_prefix("https://github.com/")
+        .or_else(|| url.strip_prefix("git@github.com:"))
+        .ok_or("GitHub URL 형식 오류")?;
+    Ok(suffix.strip_suffix(".git").unwrap_or(suffix).to_ascii_lowercase())
+}
+
 pub fn validate_github_url(url: &str) -> Result<String, String> {
     let suffix = url.strip_prefix("https://github.com/")
         .or_else(|| url.strip_prefix("git@github.com:"))
@@ -276,6 +294,29 @@ mod tests {
             assert!(validate_github_url(bad).is_err(), "{} should be rejected", bad);
         }
     }
+    #[test]
+    fn github_links_from_browser_and_duplicate_identities() {
+        assert_eq!(
+            normalized_github_url(" https://github.com/Sunwoo162/RD/ ").unwrap(),
+            "https://github.com/Sunwoo162/RD"
+        );
+        let variants = [
+            "https://github.com/sunwoo162/RD.git",
+            "https://github.com/SUNWOO162/rd/",
+            "git@github.com:sunwoo162/RD.git",
+        ];
+        for value in variants {
+            assert_eq!(github_identity(value).unwrap(), "sunwoo162/rd");
+        }
+        for bad in [
+            "https://github.com/user/repo/tree/main",
+            "https://other.example/user/repo",
+            "https://github.com/user/../repo",
+        ] {
+            assert!(normalized_github_url(bad).is_err());
+        }
+    }
+
     #[test]
     fn branch_names_are_restricted() {
         assert!(validate_branch("feat/ui").is_ok());

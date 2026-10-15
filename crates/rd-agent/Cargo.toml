@@ -1,6 +1,6 @@
 [package]
 name = "rd-agent"
-version = "1.1.0-beta.1"
+version = "1.1.0"
 edition = "2021"
 license = "MIT"
 description = "Lightweight, safe GitHub-to-local repository synchronizer"

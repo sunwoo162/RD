@@ -93,9 +93,10 @@ fn command(args: &[String], config_dir: &Path, config: &mut Settings) -> Result<
         }
         "add-auto" => {
             if args.len() != 2 { return Err("사용법: add-auto <github-url>".into()); }
-            let url = &args[1];
-            let repo_name = git::validate_github_url(url)?;
-            if config.repositories.iter().any(|r| r.url == *url) {
+            let url = git::normalized_github_url(&args[1])?;
+            let repo_name = git::validate_github_url(&url)?;
+            let identity = git::github_identity(&url)?;
+            if config.repositories.iter().any(|r| git::github_identity(&r.url).ok().as_deref() == Some(identity.as_str())) {
                 return Err("이미 등록된 GitHub 프로젝트입니다".into());
             }
             let root = config.default_root.as_ref().ok_or("먼저 기본 저장 폴더를 설정하세요")?;
@@ -112,7 +113,7 @@ fn command(args: &[String], config_dir: &Path, config: &mut Settings) -> Result<
                 target = root.join(format!("{repo_name}-{owner}-{number}"));
             }
             if target.exists() { return Err("사용 가능한 저장 폴더 이름이 없습니다".into()); }
-            let (path, branch) = git::clone_repository(url, &target, None)?;
+            let (path, branch) = git::clone_repository(&url, &target, None)?;
             let repo = Repository {
                 id: generate_id(config)?, url: url.clone(), path, branch, mode: SyncMode::Auto, enabled: true,
             };

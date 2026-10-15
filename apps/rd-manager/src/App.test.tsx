@@ -72,6 +72,27 @@ describe("RepoDock v1.1 simplified UI", () => {
       command === "run_action" && args.action === "root" && args.folder === storageRoot)).toBe(true);
   });
 
+  it("opens folder setup rather than an unusable clone dialog when the user has no default folder", async () => {
+    storageRoot = null;
+    const user = userEvent.setup();
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "프로젝트 저장 위치" })).toBeTruthy();
+    await user.click(screen.getByText("나중에"));
+    await user.click(screen.getByRole("button", { name: "저장소 연결하기" }));
+    expect(screen.getByRole("heading", { name: "프로젝트 저장 위치" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "프로젝트 연결" })).toBeNull();
+  });
+
+  it("selecting an existing RepoDock folder does not nest another RepoDock directory", async () => {
+    storageRoot = null;
+    state.open.mockResolvedValue("D:\\Projects\\RepoDock");
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByRole("heading", { name: "프로젝트 저장 위치" });
+    await user.click(screen.getByRole("button", { name: "저장 폴더 선택" }));
+    await waitFor(() => expect(storageRoot).toBe("D:\\Projects\\RepoDock"));
+  });
+
   it("requires only a GitHub URL for auto-clone; missing URL does not trigger clone", async () => {
     const user = userEvent.setup();
     render(<App />);

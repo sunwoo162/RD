@@ -111,9 +111,10 @@ export default function App() {
     const selected = await open({ directory: true, multiple: false, title: "프로젝트를 보관할 상위 폴더 선택" });
     if (typeof selected !== "string") return;
     // The selected directory is preserved; RD creates its own child folder.
-    const root = selected.replace(/[\\/]+$/, "") + "\\RepoDock";
+    const parent = selected.replace(/[\\/]+$/, "");
+    const root = /(?:^|[\\/])RepoDock$/i.test(parent) ? parent : parent + "\\RepoDock";
     const ok = await run("root", undefined, { folder: root });
-    if (ok) { setShowSetup(false); await reload(); }
+    if (ok) { setShowSetup(false); await reload(); if (url.trim()) setShowAdd(true); }
   }
   function openAdd() {
     if (!storageRoot) setShowSetup(true);
@@ -144,7 +145,7 @@ export default function App() {
       <nav className="nav"><button className="nav-item" onClick={showStartup}><Settings2 size={17}/> Preferences</button></nav>
       <div className="sidebar-bottom">
         <div className="protection"><ShieldCheck size={18} color="#89dec1"/><div><strong>Sync Guard enabled</strong><small>작업 중인 코드를 보호합니다</small></div></div>
-        <div className="agent-label"><span className="pulse"/> Agent and UI are separate <span className="version">v1.1 Preview</span></div>
+        <div className="agent-label"><span className="pulse"/> Agent and UI are separate <span className="version">v1.1.0</span></div>
       </div>
     </aside>
     <main className="content">
@@ -178,7 +179,7 @@ export default function App() {
                 <button className="delete-button" disabled={!!busy} title="관리 목록에서 제거" onClick={() => { if (window.confirm(name + "을 RD 관리 목록에서 제외할까요? 로컬 파일은 그대로 유지됩니다.")) run("remove", repo.id); }}><Trash2 size={15}/></button>
               </div></div>
             </article>;
-          })}</div> : <div className="empty"><div className="empty-glyph"><CloudDownload size={30}/></div><h3>{repos.length ? "조건에 맞는 저장소가 없어요" : "첫 번째 프로젝트를 연결하세요"}</h3><p>{repos.length ? "검색어나 필터를 변경해 보세요." : "GitHub 주소 하나만 붙여넣으면 저장 폴더 생성부터 업데이트까지 RD가 관리해요."}</p><button className="secondary-button" onClick={() => { if (repos.length) { setQuery(""); setFilter("all"); } else setShowAdd(true); }}>{repos.length ? "전체 보기" : "저장소 연결하기"} <ArrowRight size={15}/></button></div>}
+          })}</div> : <div className="empty"><div className="empty-glyph"><CloudDownload size={30}/></div><h3>{repos.length ? "조건에 맞는 저장소가 없어요" : "첫 번째 프로젝트를 연결하세요"}</h3><p>{repos.length ? "검색어나 필터를 변경해 보세요." : "GitHub 주소 하나만 붙여넣으면 저장 폴더 생성부터 업데이트까지 RD가 관리해요."}</p><button className="secondary-button" onClick={() => { if (repos.length) { setQuery(""); setFilter("all"); } else openAdd(); }}>{repos.length ? "전체 보기" : "저장소 연결하기"} <ArrowRight size={15}/></button></div>}
         </section>
         <div className="lower-grid"><section className="tip-panel"><div className="panel-icon"><LockKeyhole size={19}/></div><div><h3>Safe by design</h3><p>RD는 코드를 강제 초기화하거나 자동으로 Push하지 않습니다. 로컬 변경이 있거나 브랜치가 분기되면 업데이트를 중단합니다.</p></div></section><section className="history-panel"><div className="panel-title"><Clock3 size={16}/> Session activity</div>{events.length ? <div className="events">{events.slice(0, 3).map((e, i) => <div key={i}><span>{e.action}</span><time>{e.at}</time></div>)}</div> : <p>이 화면에서 실행한 작업이 여기에 표시됩니다.</p>}</section></div>
         <footer><span>RD · Your code, already here.</span><span>Portable · On-demand management UI</span></footer>
@@ -189,7 +190,7 @@ export default function App() {
       <div className="modal"><div className="modal-top"><div><div className="eyebrow">ONE-CLICK CONNECTION</div><h2>프로젝트 연결</h2></div><button className="icon-button" title="닫기" onClick={() => setShowAdd(false)}><X size={19}/></button></div>
         <p className="modal-lead">GitHub 주소만 입력하세요. 폴더와 브랜치는 RD가 자동으로 준비해요.</p>
         <label className="form-field">GitHub 프로젝트 주소<input autoFocus placeholder="https://github.com/owner/repo.git" value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !busy) void add(); }}/></label>
-        <div className="workspace-hint"><FolderOpen size={17}/><span><strong>저장 위치</strong><small>{storageRoot}</small></span><button className="simple-button" onClick={() => { setShowAdd(false); void showStartup(); }}>변경</button></div>
+        <div className="workspace-hint"><FolderOpen size={17}/><span><strong>저장 위치</strong><small>{storageRoot}</small></span><button className="simple-button" disabled={!!busy} onClick={pickStorageRoot}>변경</button></div>
         <div className="mode-information"><ShieldCheck size={19}/><span><strong>안전한 자동 업데이트 · {syncInterval}분 간격</strong><br/>작업 중인 파일은 수정하지 않고 새 커밋만 반영합니다.</span></div>
         <div className="modal-footer"><button className="secondary-button" onClick={() => setShowAdd(false)}>취소</button><button disabled={!!busy} className="primary" onClick={add}>{busy ? <RefreshCw className="spin" size={17}/> : <Plus size={17}/>} 프로젝트 연결</button></div>
       </div>
