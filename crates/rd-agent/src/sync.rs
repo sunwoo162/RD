@@ -16,7 +16,7 @@ impl RepoLock {
         if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
             return Err("잘못된 저장소 ID입니다".into());
         }
-        let file = match OpenOptions::new().create(true).read(true).write(true)
+        let file = match OpenOptions::new().create(true).truncate(false).read(true).write(true)
             .open(dir.join("locks").join(format!("{}.lock", id))) {
                 Ok(file) => file,
                 Err(e) if is_lock_contention(&e) => return Ok(None),

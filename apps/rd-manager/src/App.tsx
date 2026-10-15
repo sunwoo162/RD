@@ -46,8 +46,11 @@ export default function App() {
     const all = await invoke<Repo[]>("list_repositories");
     setRepos(all);
   }
-  useEffect(() => {
+  function refresh() {
     reload().catch(() => setNotice({ tone: "error", message: "RD Agent 설정을 읽지 못했습니다." }));
+  }
+  useEffect(() => {
+    refresh();
   }, []);
 
   const shown = useMemo(() => repos.filter(repo => {
@@ -63,7 +66,16 @@ export default function App() {
       const message = await invoke<string>("run_action", { action, id, ...extra });
       if (id) setResults(current => ({ ...current, [id]: message || "완료" }));
       setEvents(old => [{ action, message: message || "작업 완료", at: new Date().toLocaleTimeString("ko-KR") }, ...old].slice(0, 20));
-      setNotice({ tone: "success", message: action === "add" ? "프로젝트를 등록했습니다." : "작업을 완료했습니다." });
+      // A successful Git inspection may still report a protected/blocked update.
+      const updated = action === "sync" && message.includes("커밋 반영 완료");
+      const informational = action === "check" || (action === "sync" && !updated);
+      setNotice({
+        tone: informational ? "info" : "success",
+        message: action === "add" ? "프로젝트를 등록했습니다."
+          : action === "check" ? "변경 확인 결과를 확인하세요."
+          : action === "sync" && !updated ? "동기화 상태를 확인하세요. 로컬 변경 사항이 보호됐을 수 있습니다."
+          : "작업을 완료했습니다.",
+      });
       await reload();
       return true;
     } catch (err) {
@@ -116,7 +128,7 @@ export default function App() {
     <main className="content">
       <header className="topbar">
         <div className="crumb">Workspace <span>/</span> <strong>Overview</strong></div>
-        <div className="top-actions"><span className="local-only"><HardDrive size={14}/> LOCAL FIRST</span><button className="icon-button" title="프로젝트 새로고침" onClick={() => reload()}><RefreshCw size={17}/></button><div className="avatar">RD</div></div>
+        <div className="top-actions"><span className="local-only"><HardDrive size={14}/> LOCAL FIRST</span><button className="icon-button" title="프로젝트 새로고침" onClick={refresh}><RefreshCw size={17}/></button><div className="avatar">RD</div></div>
       </header>
       <div className="viewport">
         <div className="intro"><div><div className="eyebrow"><span className="eyebrow-line"/> REPOSITORY CONTROL CENTER</div><h1>Your code, <em>already here.</em></h1><p>GitHub와 로컬 프로젝트를 안전하게 연결하세요. 필요한 프로젝트만, 원하는 방식으로.</p></div><button className="primary" onClick={() => setShowAdd(true)}><Plus size={18}/> 프로젝트 추가</button></div>

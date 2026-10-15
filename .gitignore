@@ -1,4 +1,7 @@
 /target/
+/apps/rd-manager/node_modules/
+/apps/rd-manager/dist/
+/apps/rd-manager/src-tauri/target/
 .env
 .DS_Store
 *.log
