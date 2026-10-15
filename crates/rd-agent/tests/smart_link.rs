@@ -48,7 +48,7 @@ fn autodetect_existing_repo_by_actual_origin_and_keep_dirty_files() {
     assert!(output.contains("기존 GitHub 프로젝트 연결 완료"), "{output}");
     let settings = config_of(&t);
     assert_eq!(settings.repositories.len(), 1);
-    assert_eq!(settings.repositories[0].path, repo.canonicalize().unwrap());
+    assert_eq!(settings.repositories[0].path, rd_agent::link::canonical_path(&repo).unwrap());
     assert_eq!(settings.repositories[0].url, "git@github.com:example/actual-name.git");
     assert_eq!(settings.repositories[0].mode, SyncMode::Auto);
     assert_eq!(fs::read_to_string(repo.join("in-progress.txt")).unwrap(), "user work must stay");
@@ -96,7 +96,7 @@ fn explicit_attach_outside_workspace_never_moves_or_modifies_files() {
     let settings = config_of(&t);
     assert_eq!(settings.repositories.len(), 1);
     assert_eq!(settings.repositories[0].mode, SyncMode::Auto);
-    assert_eq!(settings.repositories[0].path, outside.canonicalize().unwrap());
+    assert_eq!(settings.repositories[0].path, rd_agent::link::canonical_path(&outside).unwrap());
     assert_eq!(run_git(&outside, &["rev-parse", "HEAD"]), before);
     assert_eq!(fs::read_to_string(outside.join("UNCOMMITTED.md")).unwrap(), "keep me");
     assert!(settings.default_root.is_none(), "explicit attach must not change workspace preferences");
