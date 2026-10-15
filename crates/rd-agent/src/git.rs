@@ -3,7 +3,7 @@ use std::{env, ffi::OsStr, fs, io::{Read, Seek, SeekFrom}, path::{Path, PathBuf}
 // Windows canonicalize() adds a \\?\ prefix. Git for Windows cannot reliably
 // use these verbatim paths as clone destinations.
 #[cfg(windows)]
-fn git_compatible_path(path: PathBuf) -> PathBuf {
+pub fn git_compatible_path(path: PathBuf) -> PathBuf {
     let Some(text) = path.to_str() else { return path };
     let Some(rest) = text.strip_prefix(r"\\?\") else { return path };
     if let Some(unc) = rest.strip_prefix(r"UNC\") {

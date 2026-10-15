@@ -4,6 +4,8 @@ use std::{collections::HashMap, env, path::{Path, PathBuf}, process, thread, tim
 fn usage() {
     println!("RD Agent v{}\n\
   rd-agent add <github-url> <folder> [--branch <name>] [--auto]\n\
+  rd-agent add-auto <github-url>   # 지정한 기본 폴더에 자동 연결\n\
+  rd-agent root <folder> | interval <5|15|30|60>\n\
   rd-agent list\n\
   rd-agent check [id]\n\
   rd-agent sync [id]       # 직접 승인하는 1회 업데이트\n\
@@ -70,6 +72,54 @@ fn generate_id(settings: &Settings) -> Result<String, String> {
 
 fn command(args: &[String], config_dir: &Path, config: &mut Settings) -> Result<(), String> {
     match args.first().map(String::as_str).unwrap_or("help") {
+        "root" => {
+            let path = PathBuf::from(args.get(1).ok_or("기본 저장 폴더를 선택하세요")?);
+            if args.len() != 2 || !path.is_absolute() { return Err("절대 경로의 저장 폴더가 필요합니다".into()); }
+            std::fs::create_dir_all(&path).map_err(|e| format!("폴더 생성 실패: {e}"))?;
+            let canonical = std::fs::canonicalize(&path).map_err(|e| e.to_string())?;
+            #[cfg(windows)]
+            let canonical = git::git_compatible_path(canonical);
+            config.default_root = Some(canonical);
+            config::save(config_dir, config)?;
+            println!("기본 저장 폴더 변경 완료 (기존 프로젝트 파일은 이동하지 않음)");
+        }
+        "interval" => {
+            if args.len() != 2 { return Err("업데이트 주기는 5, 15, 30, 60분만 지원합니다".into()); }
+            let minutes: u64 = args[1].parse().map_err(|_| "잘못된 업데이트 주기")?;
+            if ![5, 15, 30, 60].contains(&minutes) { return Err("업데이트 주기는 5, 15, 30, 60분만 지원합니다".into()); }
+            config.interval_minutes = minutes;
+            config::save(config_dir, config)?;
+            println!("자동 업데이트 확인 주기: {minutes}분");
+        }
+        "add-auto" => {
+            if args.len() != 2 { return Err("사용법: add-auto <github-url>".into()); }
+            let url = &args[1];
+            let repo_name = git::validate_github_url(url)?;
+            if config.repositories.iter().any(|r| r.url == *url) {
+                return Err("이미 등록된 GitHub 프로젝트입니다".into());
+            }
+            let root = config.default_root.as_ref().ok_or("먼저 기본 저장 폴더를 설정하세요")?;
+            let owner = url.strip_prefix("https://github.com/")
+                .or_else(|| url.strip_prefix("git@github.com:"))
+                .ok_or("GitHub URL 형식 오류")?
+                .split('/').next().ok_or("소유자 이름 확인 실패")?;
+            let mut target = root.join(&repo_name);
+            if target.exists() {
+                target = root.join(format!("{repo_name}-{owner}"));
+            }
+            for number in 2..=1000 {
+                if !target.exists() { break; }
+                target = root.join(format!("{repo_name}-{owner}-{number}"));
+            }
+            if target.exists() { return Err("사용 가능한 저장 폴더 이름이 없습니다".into()); }
+            let (path, branch) = git::clone_repository(url, &target, None)?;
+            let repo = Repository {
+                id: generate_id(config)?, url: url.clone(), path, branch, mode: SyncMode::Auto, enabled: true,
+            };
+            config.repositories.push(repo);
+            config::save(config_dir, config)?;
+            println!("프로젝트 연결 완료 · 안전한 자동 업데이트 활성화");
+        }
         "add" => {
             if args.len() < 3 { return Err("사용법: add <github-url> <folder> [--branch <name>] [--auto]".into()); }
             let url = &args[1];
@@ -197,7 +247,7 @@ fn main() {
         // Acquire before loading, so simultaneous managers cannot overwrite
         // each other's changes with a stale copy of config.json.
         let mutating = matches!(args.first().map(String::as_str),
-            Some("add" | "mode" | "pause" | "resume" | "remove"));
+            Some("add" | "add-auto" | "root" | "interval" | "mode" | "pause" | "resume" | "remove"));
         let _lock = if mutating { Some(config::ConfigLock::acquire(&dir)?) } else { None };
         let mut config = config::load(&dir)?;
         command(&args, &dir, &mut config)
