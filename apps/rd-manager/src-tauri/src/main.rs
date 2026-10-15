@@ -30,6 +30,26 @@ fn open_repository_folder(id: String) -> Result<(), String> {
     }
 }
 
+// Agent stderr can include URLs or Git diagnostics. Never forward it verbatim.
+// Convert only known, fixed phrases to user-facing messages.
+fn safe_agent_error(stderr: &str) -> &'static str {
+    if stderr.contains("같은 GitHub 저장소가 여러 폴더") {
+        "같은 GitHub 프로젝트가 여러 폴더에 있어요. 기존 로컬 프로젝트를 직접 선택해 주세요."
+    } else if stderr.contains("origin의 Git 저장소가 있지만") {
+        "기존 Git 프로젝트의 상태를 확인할 수 없어요. 브랜치와 Git 상태를 확인해 주세요."
+    } else if stderr.contains("선택한 폴더는 Git 저장소가 아닙니다") {
+        "선택한 폴더는 Git 프로젝트가 아니에요. .git이 있는 프로젝트 폴더를 선택하세요."
+    } else if stderr.contains("프로젝트 루트 폴더를 선택하세요") {
+        "프로젝트 최상위 폴더를 선택해 주세요."
+    } else if stderr.contains("GitHub의 올바른 origin URL") {
+        "GitHub 저장소의 origin이 설정되어 있는 프로젝트만 연결할 수 있어요."
+    } else if stderr.contains("이미 다른 저장소로 관리 중인 로컬 폴더") {
+        "이미 다른 프로젝트로 연결된 로컬 폴더예요."
+    } else {
+        "요청한 작업을 완료하지 못했습니다. 저장소 접근 권한과 로컬 상태를 확인하세요."
+    }
+}
+
 // Run only allowlisted CLI operations and pass arguments without a shell.
 // The CLI owns Git validation and persistence; UI does not write config.json.
 #[tauri::command]
@@ -105,8 +125,8 @@ async fn run_action(
         let stdout = String::from_utf8_lossy(&result.stdout);
         let stderr = String::from_utf8_lossy(&result.stderr);
         if !result.status.success() {
-            // Avoid displaying raw stderr: it can contain a remote URL with credentials.
-            return Err("요청한 작업을 완료하지 못했습니다. 저장소 접근 권한과 로컬 상태를 확인하세요.".into());
+            // Avoid displaying raw stderr: it can contain remote URLs/credentials.
+            return Err(safe_agent_error(&stderr).into());
         }
         let combined = if stderr.trim().is_empty() {
             stdout.trim().to_string()
