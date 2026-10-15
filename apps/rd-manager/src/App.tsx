@@ -10,7 +10,7 @@ import {
 
 type Mode = "manual" | "auto" | "observe";
 type Repo = { id: string; url: string; path: string; branch: string; mode: Mode; enabled: boolean };
-type ActionName = "add" | "add_auto" | "root" | "interval" | "check" | "sync" | "pause" | "resume" | "remove" | "mode" | "autostart";
+type ActionName = "add" | "add_auto" | "attach" | "root" | "interval" | "check" | "sync" | "pause" | "resume" | "remove" | "mode" | "autostart";
 type Preferences = { default_root: string | null; interval_minutes: number };
 type Notice = { tone: "success" | "error" | "info"; message: string };
 type Filter = "all" | "auto" | "paused";
@@ -79,7 +79,9 @@ export default function App() {
       const informational = action === "check" || (action === "sync" && !updated);
       setNotice({
         tone: informational ? "info" : "success",
-        message: action === "add" || action === "add_auto" ? "프로젝트가 연결됐어요. 안전한 자동 업데이트가 활성화됐습니다."
+        message: action === "add_auto" || action === "attach"
+          ? (message || "프로젝트 연결 완료")
+          : action === "add" ? "프로젝트가 연결됐어요."
           : action === "check" ? "변경 확인 결과를 확인하세요."
           : action === "sync" && !updated ? "동기화 상태를 확인하세요. 로컬 변경 사항이 보호됐을 수 있습니다."
           : "작업을 완료했습니다.",
@@ -106,6 +108,12 @@ export default function App() {
     }
     const ok = await run("add_auto", undefined, { url: url.trim() });
     if (ok) { setShowAdd(false); setUrl(""); }
+  }
+  async function attachLocal() {
+    const selected = await open({ directory: true, multiple: false, title: "기존 GitHub 프로젝트의 루트 폴더 선택" });
+    if (typeof selected !== "string") return;
+    const ok = await run("attach", undefined, { folder: selected });
+    if (ok) setShowAdd(false);
   }
   async function pickStorageRoot() {
     const selected = await open({ directory: true, multiple: false, title: "프로젝트를 보관할 상위 폴더 선택" });
@@ -145,7 +153,7 @@ export default function App() {
       <nav className="nav"><button className="nav-item" onClick={showStartup}><Settings2 size={17}/> Preferences</button></nav>
       <div className="sidebar-bottom">
         <div className="protection"><ShieldCheck size={18} color="#89dec1"/><div><strong>Sync Guard enabled</strong><small>작업 중인 코드를 보호합니다</small></div></div>
-        <div className="agent-label"><span className="pulse"/> Agent and UI are separate <span className="version">v1.1.0</span></div>
+        <div className="agent-label"><span className="pulse"/> Agent and UI are separate <span className="version">v1.2 Preview</span></div>
       </div>
     </aside>
     <main className="content">
@@ -161,7 +169,7 @@ export default function App() {
           <div className="metric"><div className="metric-caption"><ShieldAlert size={16}/> PROTECTED / PAUSED</div><div className="metric-value">{pausedCount.toString().padStart(2, "0")}</div><div className="metric-note">자동 업데이트 중지</div></div>
         </section>
         <section className="repository-section">
-          <div className="section-header"><div><h2>Repositories <span>{shown.length}</span></h2><p>한 번 연결하면 자동으로 최신 상태를 유지해요. 로컬 수정 파일은 건드리지 않아요.</p></div><div className="search-wrap"><Search size={16}/><input aria-label="프로젝트 검색" placeholder="Search repositories..." value={query} onChange={e => setQuery(e.target.value)}/><kbd>⌕</kbd></div></div>
+          <div className="section-header"><div><h2>Repositories <span>{shown.length}</span></h2><p>기존 GitHub 프로젝트가 있으면 중복 Clone하지 않고 연결해요. 로컬 작업 파일은 보호해요.</p></div><div className="search-wrap"><Search size={16}/><input aria-label="프로젝트 검색" placeholder="Search repositories..." value={query} onChange={e => setQuery(e.target.value)}/><kbd>⌕</kbd></div></div>
           {shown.length ? <div className="repo-list">{shown.map(repo => {
             const name = getRepoName(repo);
             const working = busy === repo.id;
@@ -188,11 +196,11 @@ export default function App() {
     {notice && <div role="status" className={"toast " + notice.tone}>{notice.tone === "success" ? <CheckCircle2 size={17}/> : <ShieldAlert size={17}/>}<span>{notice.message}</span><button onClick={() => setNotice(null)} title="닫기"><X size={15}/></button></div>}
     {showAdd && <div className="overlay" onMouseDown={e => { if (e.target === e.currentTarget) setShowAdd(false); }}>
       <div className="modal"><div className="modal-top"><div><div className="eyebrow">ONE-CLICK CONNECTION</div><h2>프로젝트 연결</h2></div><button className="icon-button" title="닫기" onClick={() => setShowAdd(false)}><X size={19}/></button></div>
-        <p className="modal-lead">GitHub 주소만 입력하세요. 폴더와 브랜치는 RD가 자동으로 준비해요.</p>
+        <p className="modal-lead">GitHub 주소를 입력하세요. RepoDock 폴더 안에서 이미 받은 저장소를 찾으면 그대로 연결하고, 없으면 새로 Clone해요.</p>
         <label className="form-field">GitHub 프로젝트 주소<input autoFocus placeholder="https://github.com/owner/repo.git" value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !busy) void add(); }}/></label>
         <div className="workspace-hint"><FolderOpen size={17}/><span><strong>저장 위치</strong><small>{storageRoot}</small></span><button className="simple-button" disabled={!!busy} onClick={pickStorageRoot}>변경</button></div>
-        <div className="mode-information"><ShieldCheck size={19}/><span><strong>안전한 자동 업데이트 · {syncInterval}분 간격</strong><br/>작업 중인 파일은 수정하지 않고 새 커밋만 반영합니다.</span></div>
-        <div className="modal-footer"><button className="secondary-button" onClick={() => setShowAdd(false)}>취소</button><button disabled={!!busy} className="primary" onClick={add}>{busy ? <RefreshCw className="spin" size={17}/> : <Plus size={17}/>} 프로젝트 연결</button></div>
+        <div className="mode-information"><ShieldCheck size={19}/><span><strong>자동 판별 · 안전한 업데이트 · {syncInterval}분 간격</strong><br/>작업 중인 파일은 수정하지 않고 새 커밋만 반영합니다.</span></div>
+        <div className="modal-footer"><button className="secondary-button" disabled={!!busy} onClick={attachLocal}><FolderOpen size={16}/> 기존 로컬 프로젝트 선택</button><button className="secondary-button" onClick={() => setShowAdd(false)}>취소</button><button disabled={!!busy} className="primary" onClick={add}>{busy ? <RefreshCw className="spin" size={17}/> : <Plus size={17}/>} 프로젝트 연결</button></div>
       </div>
     </div>}
     {showSetup && <div className="overlay"><div className="modal small"><div className="modal-top"><div><div className="eyebrow">WELCOME TO REPODOCK</div><h2>프로젝트 저장 위치</h2></div><button className="icon-button" title="나중에" onClick={() => setShowSetup(false)}><X size={19}/></button></div><p className="modal-lead">최초 한 번만 선택하세요. 선택한 폴더에 <strong>RepoDock</strong> 폴더를 만들고 프로젝트를 자동으로 분류해요.</p><div className="mode-information"><FolderOpen size={19}/><span>예: 문서 선택 → 문서 / RepoDock / 프로젝트명<br/>기존 폴더를 덮어쓰거나 옮기지 않습니다.</span></div><div className="modal-footer"><button className="secondary-button" onClick={() => setShowSetup(false)}>나중에</button><button disabled={!!busy} className="primary" onClick={pickStorageRoot}><Folder size={17}/> 저장 폴더 선택</button></div></div></div>}
