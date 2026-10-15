@@ -56,6 +56,10 @@ async fn run_action(
             let url = url.ok_or("GitHub 주소를 입력하세요")?;
             vec!["add-auto".into(), url]
         }
+        "attach" => {
+            let folder = folder.ok_or("기존 Git 프로젝트 폴더를 선택하세요")?;
+            vec!["attach".into(), folder]
+        }
         "root" => {
             let path = folder.ok_or("기본 저장 폴더를 선택하세요")?;
             vec!["root".into(), path]
