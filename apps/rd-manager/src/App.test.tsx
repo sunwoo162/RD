@@ -44,8 +44,16 @@ beforeEach(() => {
         return "확인 주기 변경";
       case "add_auto":
         if (!storageRoot) throw new Error("먼저 저장 폴더를 선택하세요");
+        if (String(args.url).endsWith("/already")) return "이미 RD에 연결된 프로젝트";
+        if (String(args.url).endsWith("/existing")) {
+          repos.push({ id: "existing-1", url: String(args.url), path: storageRoot + "\\already-on-disk", branch: "main", mode: "auto", enabled: true });
+          return "기존 GitHub 프로젝트 연결 완료 · 파일 이동/수정 없음";
+        }
         repos.push({ id: "added-1", url: String(args.url), path: storageRoot + "\\added", branch: "main", mode: "auto", enabled: true });
-        return "프로젝트 연결 완료";
+        return "새 GitHub 프로젝트 Clone 완료";
+      case "attach":
+        repos.push({ id: "local-1", url: "https://github.com/example/local", path: String(args.folder), branch: "main", mode: "auto", enabled: true });
+        return "기존 GitHub 프로젝트 연결 완료 · 파일 이동/수정 없음";
       case "check": return "최신 상태";
       case "sync": return "로컬 변경 사항 보호: 자동 업데이트 중단";
       case "pause": if (!repo) throw new Error("Unknown repo"); repo.enabled = false; return "동기화 중지";
@@ -109,6 +117,41 @@ describe("RepoDock v1.1 simplified UI", () => {
     const call = state.invoke.mock.calls.find(([command, args]) => command === "run_action" && args?.action === "add_auto");
     expect(call?.[1]).toMatchObject({ url: "https://github.com/example/added.git" });
     expect(screen.getByText("자동 업데이트", { selector: ".state" })).toBeTruthy();
+  });
+
+  it("recognizes an existing GitHub project without cloning it again", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText("첫 번째 프로젝트를 연결하세요");
+    await user.click(screen.getByRole("button", { name: /프로젝트 추가/ }));
+    await user.type(screen.getByPlaceholderText("https://github.com/owner/repo.git"), "https://github.com/example/existing");
+    await user.click(screen.getByRole("button", { name: "프로젝트 연결" }));
+    expect(await screen.findByRole("status")).toHaveProperty("textContent", expect.stringContaining("기존 GitHub 프로젝트 연결 완료"));
+    expect(await screen.findByText("existing", { selector: ".repo-name" })).toBeTruthy();
+    expect(screen.getByText("자동 업데이트", { selector: ".state" })).toBeTruthy();
+  });
+
+  it("lets the user explicitly select a local Git root outside the workspace", async () => {
+    const user = userEvent.setup();
+    state.open.mockResolvedValue("D:\\MyCode\\my-existing-repo");
+    render(<App />);
+    await screen.findByText("첫 번째 프로젝트를 연결하세요");
+    await user.click(screen.getByRole("button", { name: /프로젝트 추가/ }));
+    await user.click(screen.getByText("기존 로컬 프로젝트 선택"));
+    await waitFor(() => expect(state.invoke).toHaveBeenCalledWith("run_action",
+      expect.objectContaining({ action: "attach", folder: "D:\\MyCode\\my-existing-repo" })));
+    expect(await screen.findByText("local", { selector: ".repo-name" })).toBeTruthy();
+  });
+
+  it("displays the already-registered result without duplicating a project", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText("첫 번째 프로젝트를 연결하세요");
+    await user.click(screen.getByRole("button", { name: /프로젝트 추가/ }));
+    await user.type(screen.getByPlaceholderText("https://github.com/owner/repo.git"), "https://github.com/example/already");
+    await user.click(screen.getByRole("button", { name: "프로젝트 연결" }));
+    expect(await screen.findByRole("status")).toHaveProperty("textContent", expect.stringContaining("이미 RD에 연결된 프로젝트"));
+    expect(await screen.findByText("첫 번째 프로젝트를 연결하세요")).toBeTruthy();
   });
 
   it("handles check, protected sync, pause, resume and removing a managed repo", async () => {
