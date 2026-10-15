@@ -1,4 +1,4 @@
-# RD v1.0 RC · On-demand Manager
+# RD v1.0 · On-demand Manager
 
 ## 실행 원칙
 

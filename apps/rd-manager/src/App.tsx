@@ -122,7 +122,7 @@ export default function App() {
       <nav className="nav"><button className="nav-item" onClick={showStartup}><Settings2 size={17}/> Preferences</button></nav>
       <div className="sidebar-bottom">
         <div className="protection"><ShieldCheck size={18} color="#89dec1"/><div><strong>Sync Guard enabled</strong><small>작업 중인 코드를 보호합니다</small></div></div>
-        <div className="agent-label"><span className="pulse"/> Agent and UI are separate <span className="version">v1.0 RC</span></div>
+        <div className="agent-label"><span className="pulse"/> Agent and UI are separate <span className="version">v1.0.0</span></div>
       </div>
     </aside>
     <main className="content">

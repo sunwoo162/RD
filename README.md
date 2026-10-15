@@ -4,7 +4,7 @@
 
 RD는 **사용자가 직접 등록한 GitHub 저장소만** 지정한 로컬 폴더로 Clone하고, 원격 커밋을 주기적으로 확인하며, 안전할 때만 자동 갱신하는 초경량 프로젝트 동기화 도구입니다.
 
-**현재 단계: v1.0.0-rc.1 릴리스 후보.** Windows 실기기에서 Agent·Tray·Manager 실행과 안전한 Git 동기화를 검증했습니다. 정식 출시와 별개로 장시간 구동 및 관리 UI 전체 상호작용 테스트는 추가 검증이 필요합니다.
+**현재 단계: v1.0.0 Windows Portable.** Windows 실기기에서 Agent·Tray·Manager 실행과 안전한 Git 동기화를 검증했습니다. GUI 주요 동작 자동화 테스트와 3분간의 트레이 안정성 시험을 통과했습니다. 장기간 운영, 다수의 서로 다른 원격 저장소 및 코드 서명은 별도 검증이 필요합니다.
 
 ## 주요 기능
 
@@ -54,7 +54,7 @@ rd-agent autostart disable
 
 기본 모드는 `manual`이며 **Auto는 사용자가 명시적으로 선택한 저장소에만 적용**됩니다. `watch`는 콘솔 모드로 실행됩니다.
 
-### Windows Portable (v1.0 RC)
+### Windows Portable (v1.0.0)
 
 1. GitHub Actions의 **RD Windows Portable** 실행 결과에서 ZIP을 다운로드해 압축 해제합니다.
 2. 동일한 폴더에 있는 `rd-agent.exe`로 저장소를 등록합니다.
